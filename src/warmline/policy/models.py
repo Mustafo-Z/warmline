@@ -1,0 +1,160 @@
+"""Value types for the pre-dial policy engine. SPEC 4.1, 4.3.
+
+Everything here is frozen and I/O-free. The engine is handed these; it never
+goes and fetches them.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime, time
+from typing import Any, Literal
+
+from warmline.policy.codes import SEVERITY_ORDER
+
+CheckResult = Literal["pass", "block", "warn"]
+Recoverable = Literal["never", "on_data_fix", "after"]
+Decision = Literal["allow", "block"]
+
+
+def _iso(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return value.isoformat().replace("+00:00", "Z")
+
+
+@dataclass(frozen=True)
+class Consent:
+    lawful_basis: str
+    captured_at: datetime
+    expires_at: datetime | None = None
+    withdrawn_at: datetime | None = None
+    evidence: str = ""
+
+
+@dataclass(frozen=True)
+class SuppressionEntry:
+    phone_e164: str
+    reason: str
+    source: str = "seed"
+    note: str | None = None
+
+
+@dataclass(frozen=True)
+class AttemptRecord:
+    """One past or in-flight call attempt.
+
+    `dialed_at` is None for attempts that policy blocked. Those do not consume
+    attempt budget (SPEC 4.2) — only calls that reached a provider count.
+    """
+
+    attempt_id: str
+    prospect_id: str
+    phone_e164: str
+    status: str
+    requested_at: datetime
+    dialed_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class Prospect:
+    id: str
+    phone_e164: str
+    timezone: str
+    region_profile: str
+
+
+@dataclass(frozen=True)
+class PreDialRequest:
+    prospect: Prospect
+    now: datetime
+    consent: Consent | None = None
+    suppression: tuple[SuppressionEntry, ...] = ()
+    attempts: tuple[AttemptRecord, ...] = ()
+
+
+@dataclass(frozen=True)
+class RegionProfile:
+    name: str
+    countries: tuple[str, ...]
+    days: tuple[str, ...]
+    window_start: time
+    window_end: time
+
+
+@dataclass(frozen=True)
+class AttemptLimits:
+    max_per_24h: int
+    max_per_rolling_7d: int
+
+
+@dataclass(frozen=True)
+class VerifiedNumber:
+    phone_e164: str
+    owner: str
+    agreed_at: str
+
+
+@dataclass(frozen=True)
+class PolicyConfig:
+    policy_version: str
+    config_digest: str
+    default_profile: str
+    profiles: dict[str, RegionProfile]
+    attempt_limits: AttemptLimits
+    verified_numbers: dict[str, VerifiedNumber]
+    timezone_countries: dict[str, tuple[str, ...]]
+    timezone_mismatch_action: Literal["block", "warn"] = "block"
+    severity_order: tuple[str, ...] = SEVERITY_ORDER
+
+
+@dataclass(frozen=True)
+class CheckOutcome:
+    code: str
+    result: CheckResult
+    message: str | None = None
+    recoverable: Recoverable | None = None
+    retry_after: datetime | None = None
+    detail: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"code": self.code, "result": self.result}
+        if self.message is not None:
+            out["message"] = self.message
+        if self.recoverable is not None:
+            out["recoverable"] = self.recoverable
+        if self.retry_after is not None:
+            out["retry_after"] = _iso(self.retry_after)
+        out["detail"] = dict(self.detail)
+        return out
+
+
+@dataclass(frozen=True)
+class PolicyDecision:
+    decision: Decision
+    policy_version: str
+    config_digest: str
+    evaluated_at: datetime
+    prospect_id: str
+    phone_e164: str
+    primary_reason: str | None
+    blocking_reasons: tuple[str, ...]
+    checks: tuple[CheckOutcome, ...]
+
+    @property
+    def allowed(self) -> bool:
+        return self.decision == "allow"
+
+    def to_dict(self) -> dict[str, Any]:
+        """The shape in SPEC 4.3, stored verbatim and returned verbatim."""
+        return {
+            "decision": self.decision,
+            "policy_version": self.policy_version,
+            "config_digest": self.config_digest,
+            "evaluated_at": _iso(self.evaluated_at),
+            "prospect_id": self.prospect_id,
+            "phone_e164": self.phone_e164,
+            "primary_reason": self.primary_reason,
+            "blocking_reasons": list(self.blocking_reasons),
+            "checks": [check.to_dict() for check in self.checks],
+        }

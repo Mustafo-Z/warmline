@@ -1,0 +1,50 @@
+# Calling-hours policy. SPEC 4.2.
+#
+# Windows are half-open, [start, end): with 09:00-18:00, a call at exactly
+# 09:00:00 local is allowed and one at exactly 18:00:00 local is blocked.
+#
+# AE is the default and the profile the seed data uses. UK and US exist so the
+# timezone logic is proven against more than one window; they are exercised by
+# the tests, not by seed data.
+
+policy_version: "1.0.0"
+default_profile: AE
+
+profiles:
+  AE:
+    countries: [AE]
+    days: [sun, mon, tue, wed, thu]
+    window: { start: "09:00", end: "18:00" }
+  UK:
+    countries: [GB]
+    days: [mon, tue, wed, thu, fri]
+    window: { start: "09:00", end: "18:00" }
+  US:
+    countries: [US, CA]
+    days: [mon, tue, wed, thu, fri]
+    window: { start: "09:00", end: "20:00" }
+
+attempt_limits:
+  max_per_24h: 1
+  max_per_rolling_7d: 3
+
+# What TIMEZONE_PREFIX_MISMATCH does when it fires: block (default) or warn.
+timezone_mismatch_action: block
+
+# Countries each supported IANA timezone belongs to, used by
+# TIMEZONE_PREFIX_MISMATCH to compare the declared timezone against the country
+# implied by the phone number's E.164 prefix.
+#
+# This is a hand-maintained map rather than a library lookup on purpose: it is
+# policy-relevant geography, so it belongs in a file a reviewer can read and
+# diff. A timezone that is not listed here is not silently trusted — the check
+# returns CHECK_NOT_EVALUABLE, which blocks (SPEC 4.1, fail closed).
+timezone_countries:
+  Asia/Dubai: [AE]
+  Europe/London: [GB]
+  America/New_York: [US]
+  America/Chicago: [US]
+  America/Denver: [US]
+  America/Los_Angeles: [US]
+  America/Toronto: [CA]
+  America/Vancouver: [CA]

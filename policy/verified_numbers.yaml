@@ -1,0 +1,36 @@
+# The only numbers a call may be placed to. SPEC 2.1, SPEC 4.2 check #1.
+#
+# Nothing in this build dials: the wired provider is SimulatedProvider and no
+# code path reaches a phone network. This allowlist exists anyway, as the first
+# and highest-severity pre-dial check, so that the constraint is enforced by
+# code rather than promised in a README.
+#
+# Every entry below is fictional. The UK number is from the Ofcom range
+# reserved for drama (0113 496 0xxx); the US numbers are from the 555-01xx
+# fictional range. The UAE has no equivalent reserved range, so that number is
+# simply invented and is not in service.
+
+policy_version: "1.0.0"
+
+numbers:
+  - phone_e164: "+971501234567"
+    owner: "fictional seed record — not a real subscriber"
+    agreed_at: "2026-09-01"
+  - phone_e164: "+971501234568"
+    owner: "fictional seed record — not a real subscriber"
+    agreed_at: "2026-09-01"
+  - phone_e164: "+971501234569"
+    owner: "fictional seed record — not a real subscriber"
+    agreed_at: "2026-09-01"
+  - phone_e164: "+971501234570"
+    owner: "fictional seed record — not a real subscriber"
+    agreed_at: "2026-09-01"
+  - phone_e164: "+441134960001"
+    owner: "fictional seed record — Ofcom drama range"
+    agreed_at: "2026-09-01"
+  - phone_e164: "+12025550123"
+    owner: "fictional seed record — US 555-01xx range"
+    agreed_at: "2026-09-01"
+  - phone_e164: "+13105550123"
+    owner: "fictional seed record — US 555-01xx range"
+    agreed_at: "2026-09-01"
