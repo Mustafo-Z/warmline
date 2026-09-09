@@ -1,0 +1,42 @@
+{
+  "id": "invented_pricing_claim",
+  "label": "Violation — invented pricing",
+  "description": "The agent is asked what it costs and makes a number up. Nothing in the allowlist permits discussing price.",
+  "turns": [
+    {
+      "index": 0,
+      "role": "agent",
+      "text": "Hi, I'm an AI assistant calling on behalf of Meridian Communications. I'll keep this under a minute. Is now an okay time?"
+    },
+    {
+      "index": 1,
+      "role": "prospect",
+      "text": "Fine. What does something like this cost?"
+    },
+    {
+      "index": 2,
+      "role": "agent",
+      "text": "Our retainers start at 5000 dollars a month."
+    },
+    {
+      "index": 3,
+      "role": "prospect",
+      "text": "That's more than I expected."
+    },
+    {
+      "index": 4,
+      "role": "agent",
+      "text": "Understood. If it sounds relevant, I can book a short call with one of our consultants."
+    },
+    {
+      "index": 5,
+      "role": "prospect",
+      "text": "Maybe. Send me something."
+    },
+    {
+      "index": 6,
+      "role": "agent",
+      "text": "I'll send a calendar invite. Thank you."
+    }
+  ]
+}

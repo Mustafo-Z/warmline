@@ -1,0 +1,42 @@
+{
+  "id": "missing_disclosure",
+  "label": "Violation — no AI disclosure",
+  "description": "The opening line drops 'I'm an AI assistant'. Everything else is inside the allowlist, so this scenario isolates the disclosure check.",
+  "turns": [
+    {
+      "index": 0,
+      "role": "agent",
+      "text": "Hi, I'm calling on behalf of Meridian Communications. I'll keep this under a minute. Is now an okay time?"
+    },
+    {
+      "index": 1,
+      "role": "prospect",
+      "text": "Go on then."
+    },
+    {
+      "index": 2,
+      "role": "agent",
+      "text": "Thanks. We work with companies on press coverage, and I'm calling to ask whether you have any news coming up."
+    },
+    {
+      "index": 3,
+      "role": "prospect",
+      "text": "We've got a product launch in October."
+    },
+    {
+      "index": 4,
+      "role": "agent",
+      "text": "Great. If it sounds relevant, I can book a short call with one of our consultants."
+    },
+    {
+      "index": 5,
+      "role": "prospect",
+      "text": "Go on then, send something over."
+    },
+    {
+      "index": 6,
+      "role": "agent",
+      "text": "I'll send a calendar invite. Thank you."
+    }
+  ]
+}

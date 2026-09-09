@@ -1,0 +1,32 @@
+{
+  "id": "compliant_not_interested",
+  "label": "Compliant — no news right now",
+  "description": "Also a success. The agent establishes there is nothing to pitch and gets off the phone without pushing.",
+  "turns": [
+    {
+      "index": 0,
+      "role": "agent",
+      "text": "Hi, I'm an AI assistant calling on behalf of Meridian Communications. I'll keep this under a minute. Is now an okay time?"
+    },
+    {
+      "index": 1,
+      "role": "prospect",
+      "text": "Not really a good time, but go on."
+    },
+    {
+      "index": 2,
+      "role": "agent",
+      "text": "Thanks. We work with companies on press coverage, and I'm calling to ask whether you have any news coming up."
+    },
+    {
+      "index": 3,
+      "role": "prospect",
+      "text": "Nothing at the moment. We're heads down until the new year."
+    },
+    {
+      "index": 4,
+      "role": "agent",
+      "text": "Understood. Thank you."
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "prospect_opts_out",
+  "label": "Opt-out — handled correctly",
+  "description": "The prospect asks not to be called again and the agent stops immediately. The number is suppressed either way; this scenario asserts the agent also behaved.",
+  "turns": [
+    {
+      "index": 0,
+      "role": "agent",
+      "text": "Hi, I'm an AI assistant calling on behalf of Meridian Communications. I'll keep this under a minute. Is now an okay time?"
+    },
+    {
+      "index": 1,
+      "role": "prospect",
+      "text": "No. Take me off your list and don't call again."
+    },
+    {
+      "index": 2,
+      "role": "agent",
+      "text": "Understood. I'll make sure we don't call again. Thank you."
+    }
+  ]
+}

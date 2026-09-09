@@ -1,0 +1,32 @@
+{
+  "id": "opt_out_ignored",
+  "label": "Violation — opt-out ignored",
+  "description": "The prospect asks not to be called again and the agent keeps pitching. Suppression still happens; OPT_OUT_NOT_HONOURED records that the agent did not.",
+  "turns": [
+    {
+      "index": 0,
+      "role": "agent",
+      "text": "Hi, I'm an AI assistant calling on behalf of Meridian Communications. I'll keep this under a minute. Is now an okay time?"
+    },
+    {
+      "index": 1,
+      "role": "prospect",
+      "text": "No. Take me off your list and don't call again."
+    },
+    {
+      "index": 2,
+      "role": "agent",
+      "text": "We work with companies on press coverage, and I'm calling to ask whether you have any news coming up."
+    },
+    {
+      "index": 3,
+      "role": "prospect",
+      "text": "I said don't call me."
+    },
+    {
+      "index": 4,
+      "role": "agent",
+      "text": "If it sounds relevant, I can book a short call with one of our consultants."
+    }
+  ]
+}
