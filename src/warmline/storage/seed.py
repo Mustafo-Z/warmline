@@ -25,7 +25,7 @@ CONSENT_TERM = timedelta(days=180)
 SEED_PROSPECTS = [
     (
         "psp_0001",
-        "Layla Haddad",
+        "Farah Idrissi",
         "Northwind Robotics",
         "Head of Communications",
         "+971501234567",

@@ -344,3 +344,45 @@ def test_a_replayed_webhook_produces_one_outcome(db_and_client, monkeypatch):
 
     assert second.json()["status"] == "already_processed"
     assert connection.execute("SELECT COUNT(*) FROM call_outcome").fetchone()[0] == 1
+
+
+def test_concurrent_requests_do_not_corrupt_each_other():
+    """Regression: six simultaneous policy checks used to return 500s.
+
+    The shared SQLite connection was being used from several threadpool
+    workers at once, and interleaved cursors handed back rows with empty
+    timestamp columns. Found by clicking every button on the page at once,
+    not by reasoning about it.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    _connection, client = build()
+    ids = [f"psp_000{n}" for n in range(1, 7)]
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        responses = list(
+            pool.map(lambda i: client.post(f"/prospects/{i}/policy-check", json={}), ids)
+        )
+
+    assert [r.status_code for r in responses] == [200] * 6
+    assert all(r.json()["prospect_id"] for r in responses)
+
+
+def test_the_last_outcome_survives_a_later_block(db_and_client):
+    """Regression: the row went blank after a completed call was followed by a block.
+
+    The view read the outcome of the *latest attempt*, and the latest attempt
+    was the block, which never has one. What a reviewer wants to see is the
+    last thing that actually happened on the phone.
+    """
+    connection, client = db_and_client
+
+    client.post("/prospects/psp_0001/calls", json={"scenario": "compliant_meeting_booked"})
+    blocked = client.post(
+        "/prospects/psp_0001/calls", json={"scenario": "compliant_not_interested"}
+    )
+    assert blocked.status_code == 409
+
+    row = next(p for p in client.get("/prospects").json()["prospects"] if p["id"] == "psp_0001")
+    assert row["last_outcome"]["interest"] == "interested"
+    assert row["last_policy_decision"]["primary_reason"] == "ATTEMPT_LIMIT_REACHED"

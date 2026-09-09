@@ -35,7 +35,7 @@ def db():
 def prospect(db):
     return repository.insert_prospect(
         db,
-        full_name="Layla Haddad",
+        full_name="Farah Idrissi",
         company="Northwind Robotics",
         phone_e164=AE_NUMBER,
         timezone="Asia/Dubai",

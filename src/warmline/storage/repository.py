@@ -444,3 +444,19 @@ def latest_evaluation(connection: sqlite3.Connection, prospect_id: str) -> dict 
     record = dict(row)
     record["decision_object"] = json.loads(record.pop("checks_json"))
     return record
+
+
+def latest_outcome(connection: sqlite3.Connection, prospect_id: str) -> dict | None:
+    """The most recent outcome for a prospect, across all their attempts.
+
+    Not the same as "the outcome of the latest attempt": the latest attempt is
+    often a block, which never produces an outcome, and the last thing that
+    actually happened on the phone is still worth showing.
+    """
+    row = connection.execute(
+        "SELECT o.call_attempt_id FROM call_outcome o"
+        " JOIN call_attempt a ON a.id = o.call_attempt_id"
+        " WHERE a.prospect_id = ? ORDER BY o.processed_at DESC, o.id DESC LIMIT 1",
+        (prospect_id,),
+    ).fetchone()
+    return get_outcome_for_attempt(connection, row["call_attempt_id"]) if row else None
