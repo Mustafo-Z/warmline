@@ -8,7 +8,7 @@ an attempt limit, these tests should notice.
 from __future__ import annotations
 
 import dataclasses
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -36,7 +36,7 @@ UNVERIFIED_NUMBER = "+971501111111"
 
 def at(value: str) -> datetime:
     """Parse an ISO-8601 instant, `Z` included, into an aware UTC datetime."""
-    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
 
 
 @pytest.fixture(scope="session")

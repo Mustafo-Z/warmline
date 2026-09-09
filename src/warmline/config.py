@@ -66,7 +66,9 @@ def load_policy_config(policy_dir: Path | None = None) -> PolicyConfig:
     for raw in numbers.get("numbers") or []:
         normalised = normalise_e164(raw["phone_e164"])
         if normalised is None:
-            raise ValueError(f"verified_numbers.yaml carries an invalid number: {raw['phone_e164']}")
+            raise ValueError(
+                f"verified_numbers.yaml carries an invalid number: {raw['phone_e164']}"
+            )
         verified[normalised] = VerifiedNumber(
             phone_e164=normalised,
             owner=raw["owner"],
@@ -86,7 +88,8 @@ def load_policy_config(policy_dir: Path | None = None) -> PolicyConfig:
         ),
         verified_numbers=verified,
         timezone_countries={
-            tz: tuple(countries) for tz, countries in (windows.get("timezone_countries") or {}).items()
+            tz: tuple(countries)
+            for tz, countries in (windows.get("timezone_countries") or {}).items()
         },
         timezone_mismatch_action=windows.get("timezone_mismatch_action", "block"),
     )

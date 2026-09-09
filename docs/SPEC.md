@@ -268,6 +268,21 @@ profiles:
     countries: [US, CA]
     days: [mon, tue, wed, thu, fri]
     window: { start: "09:00", end: "20:00" }
+
+# What TIMEZONE_PREFIX_MISMATCH does when it fires.
+timezone_mismatch_action: block
+
+# Countries each supported timezone belongs to, used by
+# TIMEZONE_PREFIX_MISMATCH. Hand-maintained on purpose: this is
+# policy-relevant geography, so it belongs in a file a reviewer can diff
+# rather than inside a dependency. A timezone absent from this map is not
+# trusted — the check returns CHECK_NOT_EVALUABLE, which blocks.
+timezone_countries:
+  Asia/Dubai: [AE]
+  Europe/London: [GB]
+  America/New_York: [US]
+  America/Los_Angeles: [US]
+  # ... and the other supported zones
 ```
 
 `AE` is the default and the profile the seed data uses, because that is the
@@ -359,7 +374,9 @@ Field rules:
 - `recoverable` is `never` | `on_data_fix` | `after`. When it is `after`,
   `retry_after` carries the earliest instant at which that specific check would
   pass, computed from the same inputs. This is what lets the UI say "blocked
-  until 09:00 Asia/Dubai" rather than just "blocked".
+  until 09:00 Asia/Dubai" rather than just "blocked". `CALL_IN_FLIGHT` is the
+  one exception: it is recoverable, but the unblocking event is the call
+  ending rather than a clock time, so its `retry_after` is null.
 - `message` is human-readable and safe to show in a UI. It never contains the
   full phone number.
 - `config_digest` is the SHA-256 of the concatenated policy config files, so a

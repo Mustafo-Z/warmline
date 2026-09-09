@@ -11,7 +11,6 @@ import itertools
 from datetime import timedelta
 
 import pytest
-
 from tests.conftest import (
     AE_NUMBER,
     UK_NUMBER,
@@ -26,6 +25,7 @@ from tests.conftest import (
     valid_consent,
     with_config,
 )
+
 from warmline.policy import codes
 from warmline.policy.engine import evaluate_pre_dial
 from warmline.policy.models import Consent, SuppressionEntry
@@ -197,9 +197,7 @@ def test_same_instant_is_blocked_in_dubai_and_allowed_in_london(config):
     london = evaluate_pre_dial(
         make_request(
             now=now,
-            prospect=make_prospect(
-                phone_e164=UK_NUMBER, tz="Europe/London", region_profile="UK"
-            ),
+            prospect=make_prospect(phone_e164=UK_NUMBER, tz="Europe/London", region_profile="UK"),
         ),
         config,
     )
@@ -257,8 +255,12 @@ def test_dst_moves_the_same_utc_time_across_the_london_window_edge(config):
     """
     london = make_prospect(phone_e164=UK_NUMBER, tz="Europe/London", region_profile="UK")
 
-    in_gmt = evaluate_pre_dial(make_request(now=at("2026-03-25T08:59:00Z"), prospect=london), config)
-    in_bst = evaluate_pre_dial(make_request(now=at("2026-04-01T08:59:00Z"), prospect=london), config)
+    in_gmt = evaluate_pre_dial(
+        make_request(now=at("2026-03-25T08:59:00Z"), prospect=london), config
+    )
+    in_bst = evaluate_pre_dial(
+        make_request(now=at("2026-04-01T08:59:00Z"), prospect=london), config
+    )
 
     assert codes.OUTSIDE_CALLING_HOURS in in_gmt.blocking_reasons
     assert in_bst.decision == "allow"
@@ -496,9 +498,7 @@ def test_every_failure_is_reported_not_just_the_first(config):
     now = at(WEDNESDAY_1600Z)  # outside AE hours
     entry = SuppressionEntry(phone_e164=AE_NUMBER, reason="complaint")
 
-    decision = evaluate_pre_dial(
-        make_request(now=now, consent=None, suppression=(entry,)), config
-    )
+    decision = evaluate_pre_dial(make_request(now=now, consent=None, suppression=(entry,)), config)
 
     assert set(decision.blocking_reasons) == {
         codes.CONSENT_MISSING,
@@ -511,9 +511,7 @@ def test_primary_reason_is_the_most_severe_block(config):
     now = at(WEDNESDAY_1600Z)
     entry = SuppressionEntry(phone_e164=AE_NUMBER, reason="complaint")
 
-    decision = evaluate_pre_dial(
-        make_request(now=now, consent=None, suppression=(entry,)), config
-    )
+    decision = evaluate_pre_dial(make_request(now=now, consent=None, suppression=(entry,)), config)
 
     assert decision.primary_reason == codes.NUMBER_SUPPRESSED
 
@@ -522,9 +520,7 @@ def test_blocking_reasons_follow_severity_order(config):
     now = at(WEDNESDAY_1600Z)
     entry = SuppressionEntry(phone_e164=AE_NUMBER, reason="complaint")
 
-    decision = evaluate_pre_dial(
-        make_request(now=now, consent=None, suppression=(entry,)), config
-    )
+    decision = evaluate_pre_dial(make_request(now=now, consent=None, suppression=(entry,)), config)
 
     ranks = [codes.SEVERITY_ORDER.index(reason) for reason in decision.blocking_reasons]
     assert ranks == sorted(ranks)
