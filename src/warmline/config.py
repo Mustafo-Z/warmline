@@ -140,6 +140,9 @@ def load_claims_config(policy_dir: Path | None = None) -> ClaimsConfig:
         ),
         prohibited_patterns=_rules(raw.get("prohibited_patterns")),
         non_claim_patterns=_rules(raw.get("non_claim_patterns")),
+        commitment_patterns=_rules(raw.get("commitment_patterns")),
+        opt_out_patterns=_rules(raw.get("opt_out_patterns")),
+        paraphrase_threshold=float(raw.get("paraphrase_threshold", 0.7)),
         non_claim_eligibility=NonClaimEligibility(
             no_numeric_tokens=bool(eligibility.get("no_numeric_tokens", True)),
             no_proper_nouns_except_principal=bool(

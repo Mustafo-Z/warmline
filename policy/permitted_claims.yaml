@@ -1,4 +1,8 @@
-# What the agent is allowed to assert. SPEC 5.1, SPEC 5.2.
+# The post-call content rules. SPEC 5.1, SPEC 5.2, SPEC 4.5.
+#
+# What the agent is allowed to assert, what it must never say, what counts as
+# committing to something it cannot commit to, and how an opt-out is
+# recognised.
 #
 # Version controlled, not inline in Python and not only in a provider
 # dashboard, so that a change to what the agent may say arrives as a diff.
@@ -68,3 +72,35 @@ non_claim_patterns:
     pattern: '^[^.!]*\?$'
   - id: SCHEDULING
     pattern: '^(what time works|does .* work for you|i can put that in the calendar|i.ll send a calendar invite)[.?!]?$'
+
+# How close a sentence must be to a canonical claim to count as that claim.
+# Measured as the share of the sentence's own tokens that appear in the
+# canonical, so a sentence that ADDS content fails even when it contains every
+# word of the canonical. That is the safe direction: paraphrase is permitted,
+# elaboration is not.
+paraphrase_threshold: 0.7
+
+# OUT_OF_SCOPE_COMMITMENT (SPEC 4.5). The agent has no authority to agree to
+# anything. Checked only on sentences that did not already fire a prohibited
+# pattern, so a promise about price is reported once, as the more specific
+# UNPERMITTED_CLAIM.
+commitment_patterns:
+  - id: AGREES_TO_SEND
+    pattern: '\b(i|we)\s?(will|.ll|can)\s(send|email|forward|share)\b'
+    reason: "The agent may not commit to sending documents."
+  - id: AGREES_TO_SIGN
+    pattern: '\b(i|we)\s?(will|.ll|can)\s(sign|agree to|arrange|approve|waive)\b'
+    reason: "The agent may not agree to contractual terms."
+  - id: BLANKET_YES
+    pattern: '^(yes|sure|absolutely|of course|certainly)[,.]?\s(i|we)\s?(can|will|.ll)\b'
+    reason: "The agent may not agree to an unspecified request."
+
+# Recognised in the PROSPECT's turns. Suppression follows regardless of how the
+# agent then behaved; OPT_OUT_NOT_HONOURED is about the agent.
+opt_out_patterns:
+  - id: REMOVE_ME
+    pattern: '\b(take me off|remove me from|unsubscribe)\b'
+  - id: DO_NOT_CALL
+    pattern: "\\b(do ?n.t call( me)?( again)?|stop calling|don.t contact me|never call)\\b"
+  - id: NOT_INTERESTED_STOP
+    pattern: '\b(lose my number|delete my (number|details))\b'

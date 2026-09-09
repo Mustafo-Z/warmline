@@ -195,6 +195,9 @@ class ClaimsConfig:
     prohibited_patterns: tuple[RulePattern, ...]
     non_claim_patterns: tuple[RulePattern, ...]
     non_claim_eligibility: NonClaimEligibility
+    commitment_patterns: tuple[RulePattern, ...] = ()
+    opt_out_patterns: tuple[RulePattern, ...] = ()
+    paraphrase_threshold: float = 0.7
 
     def claim(self, claim_id: str) -> PermittedClaim | None:
         return next((c for c in self.permitted_claims if c.id == claim_id), None)
