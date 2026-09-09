@@ -408,3 +408,39 @@ def build_pre_dial_request(
             connection, prospect_id=prospect_id, phone_e164=prospect.phone_e164
         ),
     )
+
+
+def get_attempt(connection: sqlite3.Connection, attempt_id: str) -> dict | None:
+    row = connection.execute("SELECT * FROM call_attempt WHERE id = ?", (attempt_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def find_attempt_by_conversation(
+    connection: sqlite3.Connection, conversation_id: str
+) -> dict | None:
+    row = connection.execute(
+        "SELECT * FROM call_attempt WHERE provider_conversation_id = ?", (conversation_id,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def latest_attempt(connection: sqlite3.Connection, prospect_id: str) -> dict | None:
+    row = connection.execute(
+        "SELECT * FROM call_attempt WHERE prospect_id = ?"
+        " ORDER BY requested_at DESC, id DESC LIMIT 1",
+        (prospect_id,),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def latest_evaluation(connection: sqlite3.Connection, prospect_id: str) -> dict | None:
+    row = connection.execute(
+        "SELECT * FROM policy_evaluation WHERE prospect_id = ?"
+        " ORDER BY evaluated_at DESC, id DESC LIMIT 1",
+        (prospect_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    record = dict(row)
+    record["decision_object"] = json.loads(record.pop("checks_json"))
+    return record

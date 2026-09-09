@@ -29,7 +29,14 @@ def from_iso(value: str | None) -> datetime | None:
 
 
 def connect(path: Path | str = ":memory:") -> sqlite3.Connection:
-    connection = sqlite3.connect(path, isolation_level=None)
+    """One connection, shared.
+
+    `check_same_thread=False` because the API serves sync endpoints from a
+    threadpool. Safe here: sqlite3 is built in serialized mode, the connection
+    is in autocommit, and this is a single-user demo. A multi-user deployment
+    would want a connection per request against a real server.
+    """
+    connection = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
