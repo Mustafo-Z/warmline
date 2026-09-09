@@ -7,6 +7,7 @@ This is the I/O boundary. `src/warmline/policy/` stays pure: it is handed a
 from __future__ import annotations
 
 import hashlib
+import re
 from datetime import time
 from pathlib import Path
 
@@ -15,8 +16,13 @@ import yaml
 from warmline.phone import normalise_e164
 from warmline.policy.models import (
     AttemptLimits,
+    ClaimsConfig,
+    DisclosureConfig,
+    NonClaimEligibility,
+    PermittedClaim,
     PolicyConfig,
     RegionProfile,
+    RulePattern,
     VerifiedNumber,
 )
 
@@ -79,7 +85,7 @@ def load_policy_config(policy_dir: Path | None = None) -> PolicyConfig:
 
     return PolicyConfig(
         policy_version=str(windows["policy_version"]),
-        config_digest=config_digest([windows_path, numbers_path]),
+        config_digest=config_digest([directory / name for name in POLICY_FILES]),
         default_profile=windows["default_profile"],
         profiles=profiles,
         attempt_limits=AttemptLimits(
@@ -92,4 +98,69 @@ def load_policy_config(policy_dir: Path | None = None) -> PolicyConfig:
             for tz, countries in (windows.get("timezone_countries") or {}).items()
         },
         timezone_mismatch_action=windows.get("timezone_mismatch_action", "block"),
+    )
+
+
+# --- the claim allowlist and the disclosure rule ---------------------------
+
+PERMITTED_CLAIMS = "permitted_claims.yaml"
+DISCLOSURE = "disclosure.yaml"
+
+#: Every policy file, in the digest. A decision names the whole policy bundle
+#: that produced it, not just the part its own checks happened to read.
+POLICY_FILES = (CALLING_WINDOWS, VERIFIED_NUMBERS, PERMITTED_CLAIMS, DISCLOSURE)
+
+
+def _rules(raw: list[dict] | None) -> tuple[RulePattern, ...]:
+    return tuple(
+        RulePattern(
+            id=entry["id"],
+            pattern=re.compile(entry["pattern"], re.IGNORECASE),
+            reason=entry.get("reason"),
+        )
+        for entry in (raw or [])
+    )
+
+
+def load_claims_config(policy_dir: Path | None = None) -> ClaimsConfig:
+    directory = policy_dir or POLICY_DIR
+    raw = yaml.safe_load((directory / PERMITTED_CLAIMS).read_text())
+    eligibility = raw.get("non_claim_eligibility") or {}
+
+    return ClaimsConfig(
+        policy_version=str(raw["policy_version"]),
+        principal=raw["principal"],
+        permitted_claims=tuple(
+            PermittedClaim(
+                id=entry["id"],
+                canonical=entry["canonical"],
+                may_paraphrase=bool(entry.get("may_paraphrase", False)),
+            )
+            for entry in raw.get("permitted_claims") or []
+        ),
+        prohibited_patterns=_rules(raw.get("prohibited_patterns")),
+        non_claim_patterns=_rules(raw.get("non_claim_patterns")),
+        non_claim_eligibility=NonClaimEligibility(
+            no_numeric_tokens=bool(eligibility.get("no_numeric_tokens", True)),
+            no_proper_nouns_except_principal=bool(
+                eligibility.get("no_proper_nouns_except_principal", True)
+            ),
+        ),
+    )
+
+
+def load_disclosure_config(policy_dir: Path | None = None) -> DisclosureConfig:
+    directory = policy_dir or POLICY_DIR
+    raw = yaml.safe_load((directory / DISCLOSURE).read_text())
+    block = raw["disclosure"]
+
+    return DisclosureConfig(
+        policy_version=str(raw["policy_version"]),
+        principal=raw["principal"],
+        required_in_agent_turn=int(block["required_in_agent_turn"]),
+        accepted_patterns=tuple(
+            RulePattern(id=f"DISCLOSURE_{index}", pattern=re.compile(pattern, re.IGNORECASE))
+            for index, pattern in enumerate(block["accepted_patterns"])
+        ),
+        must_also_mention_principal=bool(block.get("must_also_mention_principal", True)),
     )

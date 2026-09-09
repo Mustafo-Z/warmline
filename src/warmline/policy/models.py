@@ -6,6 +6,7 @@ goes and fetches them.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, time
 from typing import Any, Literal
@@ -158,3 +159,51 @@ class PolicyDecision:
             "blocking_reasons": list(self.blocking_reasons),
             "checks": [check.to_dict() for check in self.checks],
         }
+
+
+# --- the claim allowlist (SPEC 5.1) ----------------------------------------
+
+
+@dataclass(frozen=True)
+class PermittedClaim:
+    id: str
+    canonical: str
+    may_paraphrase: bool
+
+
+@dataclass(frozen=True)
+class RulePattern:
+    """A named, compiled pattern. The id travels with every violation so that a
+    reviewer can see which rule fired without re-deriving it."""
+
+    id: str
+    pattern: re.Pattern[str]
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class NonClaimEligibility:
+    no_numeric_tokens: bool
+    no_proper_nouns_except_principal: bool
+
+
+@dataclass(frozen=True)
+class ClaimsConfig:
+    policy_version: str
+    principal: str
+    permitted_claims: tuple[PermittedClaim, ...]
+    prohibited_patterns: tuple[RulePattern, ...]
+    non_claim_patterns: tuple[RulePattern, ...]
+    non_claim_eligibility: NonClaimEligibility
+
+    def claim(self, claim_id: str) -> PermittedClaim | None:
+        return next((c for c in self.permitted_claims if c.id == claim_id), None)
+
+
+@dataclass(frozen=True)
+class DisclosureConfig:
+    policy_version: str
+    principal: str
+    required_in_agent_turn: int
+    accepted_patterns: tuple[RulePattern, ...]
+    must_also_mention_principal: bool

@@ -1,0 +1,21 @@
+{
+  "name": "Warmline outbound — Meridian Communications",
+  "principal": "Meridian Communications",
+  "language": "en",
+  "system_prompt_file": "agent/system_prompt.md",
+  "first_turn_file": "agent/first_turn.md",
+  "policy_files": {
+    "permitted_claims": "policy/permitted_claims.yaml",
+    "disclosure": "policy/disclosure.yaml"
+  },
+  "conversation": {
+    "max_duration_seconds": 180,
+    "end_call_on_voicemail": true,
+    "interruptible": true
+  },
+  "provider": {
+    "name": "elevenlabs",
+    "wired": false,
+    "note": "No provider is configured in this build. The wired provider is SimulatedProvider and no code path reaches a phone network. This block records the configuration an ElevenLabs agent would be created with, so the seam is reviewable."
+  }
+}

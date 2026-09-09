@@ -1,0 +1,18 @@
+# The AI disclosure requirement. SPEC 4.4, SPEC 4.5.
+#
+# The agent must say it is an AI, and name who it is calling for, in its first
+# turn. This file is what the post-call check reads to decide whether it did.
+
+policy_version: "1.0.0"
+
+# Fictional. There is no such consultancy.
+principal: "Meridian Communications"
+
+disclosure:
+  # The first agent turn, transcript index 0. Disclosure later in the call is
+  # still a violation: DISCLOSURE_NOT_IN_FIRST_TURN.
+  required_in_agent_turn: 1
+  accepted_patterns:
+    - "i'?m an ai (assistant|agent|voice assistant)"
+    - "this is an (automated|ai) call"
+  must_also_mention_principal: true

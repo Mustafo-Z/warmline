@@ -1,0 +1,70 @@
+# What the agent is allowed to assert. SPEC 5.1, SPEC 5.2.
+#
+# Version controlled, not inline in Python and not only in a provider
+# dashboard, so that a change to what the agent may say arrives as a diff.
+
+policy_version: "1.0.0"
+principal: "Meridian Communications"
+
+permitted_claims:
+  - id: WHO_WE_ARE
+    canonical: "Hi, I'm an AI assistant calling on behalf of Meridian Communications."
+    may_paraphrase: true
+  - id: TIME_PROMISE
+    canonical: "I'll keep this under a minute."
+    may_paraphrase: true
+  - id: WHY_CALLING
+    canonical: "We work with companies on press coverage, and I'm calling to ask whether you have any news coming up."
+    may_paraphrase: true
+  - id: WHAT_HAPPENS_NEXT
+    canonical: "If it sounds relevant, I can book a short call with one of our consultants."
+    may_paraphrase: true
+  - id: HOW_WE_GOT_NUMBER
+    canonical: "You're on our list because you agreed to be contacted about this."
+    may_paraphrase: false
+  - id: OPT_OUT
+    canonical: "If you'd rather we didn't call again, I'll make sure we don't."
+    may_paraphrase: true
+
+# Tier 1a. A sentence matching any of these is an UNPERMITTED_CLAIM outright,
+# with no further classification attempted. Blunt on purpose.
+prohibited_patterns:
+  - id: PRICE
+    pattern: '(\$|£|€|AED|USD|GBP)\s?\d|(\d+\s?(dollars|pounds|dirhams))'
+    reason: "The agent may not discuss price."
+  - id: GUARANTEE
+    pattern: '\b(guarantee|guaranteed|we can promise|definitely will)\b'
+    reason: "The agent may not guarantee an outcome."
+  - id: NAMED_OUTLET
+    pattern: '\b(the times|forbes|techcrunch|financial times|bbc|bloomberg|reuters)\b'
+    reason: "The agent may not name outlets it can place a story in."
+  - id: TIMELINE
+    pattern: '\b(within \d+ (days|weeks)|by (next|the end of) (week|month))\b'
+    reason: "The agent may not commit to a delivery timeline."
+  - id: COVERAGE_PROMISE
+    pattern: '\b(get you (coverage|featured|published|in the press))\b'
+    reason: "The agent may not promise coverage."
+  - id: COMPETITOR
+    pattern: '\b(better than|cheaper than|unlike)\b.{0,40}\b(agency|agencies|competitor)\b'
+    reason: "The agent may not compare the consultancy to competitors."
+
+# A sentence is only ELIGIBLE to be dismissed as a non-claim if it carries no
+# numeric token and no proper noun other than the principal. Numbers and names
+# are the raw material of invented claims, so a sentence containing either is
+# always checked against the allowlist, even when phrased as a question.
+non_claim_eligibility:
+  no_numeric_tokens: true
+  no_proper_nouns_except_principal: true
+
+# Tier 1b. Anchored to the whole sentence: a prefix match must not be able to
+# dismiss "Hi, I'm an AI assistant calling on behalf of Meridian
+# Communications" as a greeting.
+non_claim_patterns:
+  - id: GREETING
+    pattern: '^(hi|hello|good (morning|afternoon|evening))[.,!]?$'
+  - id: ACKNOWLEDGEMENT
+    pattern: '^(thanks|thank you|sure|of course|no problem|great|understood|got it)[.,!]?$'
+  - id: QUESTION
+    pattern: '^[^.!]*\?$'
+  - id: SCHEDULING
+    pattern: '^(what time works|does .* work for you|i can put that in the calendar|i.ll send a calendar invite)[.?!]?$'
