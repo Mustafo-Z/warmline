@@ -518,6 +518,17 @@ non_claim_patterns:
     pattern: '^(what time works|does .* work for you|i can put that in the calendar|i.ll send a calendar invite)[.?!]?$'
 ```
 
+The file also carries three things this section's sample omits, added while
+implementing the checker:
+
+- `paraphrase_threshold` (0.7) — how much of a sentence must be accounted for
+  by a canonical claim to count as that claim.
+- `commitment_patterns` — what `OUT_OF_SCOPE_COMMITMENT` looks for. Checked
+  only on sentences the allowlist did not already account for, so that
+  permitted scheduling ("I'll send a calendar invite") is not reported as
+  agreeing to send a document.
+- `opt_out_patterns` — how an opt-out is recognised in the prospect's turns.
+
 ### 5.2 How a violation is detected
 
 Input is a normalised transcript (§6.2). The pipeline runs over **agent turns
