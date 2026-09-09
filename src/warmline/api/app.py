@@ -13,12 +13,14 @@ import hmac
 import json
 import os
 import sqlite3
+import threading
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -72,6 +74,20 @@ def create_app(
         version="0.1.0",
     )
 
+    # The UI is served from a different port in development. Local origins only.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            # Fallback when 3000 is already taken by something else.
+            "http://localhost:3100",
+            "http://127.0.0.1:3100",
+        ],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     shared = connection or connect(db_path or DEFAULT_DB)
     migrate(shared)
 
@@ -81,8 +97,20 @@ def create_app(
     call_provider = provider or get_provider()
     now_fn = clock or _now
 
-    def db() -> sqlite3.Connection:
-        return shared
+    # One connection, shared, and therefore serialised. sqlite3 lets several
+    # threads use one connection with check_same_thread=False, but it does not
+    # make interleaved cursors safe: two requests reading at once returned rows
+    # with empty timestamp columns, which surfaced as a 500 from datetime
+    # parsing. FastAPI serves sync endpoints from a threadpool, so this is
+    # reachable from two clicks in a browser, not just in theory.
+    #
+    # A real deployment would use a connection per request against a database
+    # built for concurrency. For a single-user demo, one lock is the honest fix.
+    connection_lock = threading.Lock()
+
+    def db():
+        with connection_lock:
+            yield shared
 
     # --- reads -------------------------------------------------------------
 
@@ -103,7 +131,7 @@ def create_app(
     def _prospect_view(connection: sqlite3.Connection, record) -> dict:
         attempt = repository.latest_attempt(connection, record.id)
         evaluation = repository.latest_evaluation(connection, record.id)
-        outcome = repository.get_outcome_for_attempt(connection, attempt["id"]) if attempt else None
+        outcome = repository.latest_outcome(connection, record.id)
         return {
             "id": record.id,
             "full_name": record.full_name,

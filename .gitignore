@@ -10,3 +10,6 @@ venv/
 *.sqlite3
 node_modules/
 .next/
+web/.next/
+web/node_modules/
+web/next-env.d.ts
