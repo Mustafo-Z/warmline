@@ -36,10 +36,34 @@ say "Checking prerequisites"
 command -v git >/dev/null || die "git is not installed."
 command -v brew >/dev/null || die "Homebrew is not installed. See https://brew.sh"
 
-PYTHON="$(command -v python3.12 || command -v python3 || true)"
-[ -n "$PYTHON" ] || die "No python3 found. Try: brew install python@3.12"
-"$PYTHON" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' \
-  || die "Python 3.11 or newer is required. Try: brew install python@3.12"
+# Take the first interpreter that is actually new enough, rather than assuming
+# a name. A machine that has run a few projects tends to have several Pythons
+# with none of them called python3.12.
+PYTHON=""
+for candidate in \
+  python3.14 python3.13 python3.12 python3.11 python3 \
+  /opt/homebrew/opt/python@3.14/bin/python3.14 \
+  /opt/homebrew/opt/python@3.13/bin/python3.13 \
+  /opt/homebrew/opt/python@3.12/bin/python3.12 \
+  /opt/homebrew/opt/python@3.11/bin/python3.11
+do
+  path="$(command -v "$candidate" 2>/dev/null || true)"
+  [ -n "$path" ] || continue
+  if "$path" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+    PYTHON="$path"
+    break
+  fi
+done
+
+if [ -z "$PYTHON" ]; then
+  echo "Interpreters found on PATH:"
+  for candidate in python3 python3.11 python3.12 python3.13 python3.14; do
+    path="$(command -v "$candidate" 2>/dev/null || true)"
+    [ -n "$path" ] && echo "  $path -> $("$path" --version 2>&1)"
+  done
+  die "None of these is Python 3.11 or newer. Try: brew install python@3.12"
+fi
+echo "Using $PYTHON ($("$PYTHON" --version 2>&1))"
 
 command -v cloudflared >/dev/null || { say "Installing cloudflared"; brew install cloudflared; }
 
