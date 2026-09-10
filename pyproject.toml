@@ -30,7 +30,9 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+# "." so `from tests.conftest import ...` resolves. It worked locally without
+# it by accident of the editable install; CI is the honest environment.
+pythonpath = ["src", "."]
 
 [tool.ruff]
 line-length = 100
