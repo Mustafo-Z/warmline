@@ -5,7 +5,13 @@
 #
 # No port forwarding and no public IP: cloudflared makes an outbound connection
 # to Cloudflare, so nothing on the home router is opened. TLS terminates at
-# Cloudflare.
+# Cloudflare. The API binds to 127.0.0.1, so the tunnel is the only way in and
+# nothing else on the local network can reach it.
+#
+# Runs the service under launchd rather than Docker. Docker Desktop on macOS
+# needs a logged-in GUI session, which is the wrong dependency for a machine
+# that should come back on its own after a power cut. The Dockerfile in the
+# repository root still works if you would rather use a container.
 #
 # Safe to run more than once.
 #
@@ -13,12 +19,13 @@
 #
 set -euo pipefail
 
-REPO="Mustafo-Z/warmline"
 CHECKOUT="${WARMLINE_DIR:-$HOME/warmline}"
 TUNNEL="warmline"
 API_HOST="api.warmline.mziyo.com"
 PAGE_ORIGIN="https://warmline.mziyo.com"
 PORT="8000"
+LABEL="com.mziyo.warmline"
+PLIST="/Library/LaunchDaemons/${LABEL}.plist"
 
 say() { printf "\n\033[1m==> %s\033[0m\n" "$1"; }
 die() { printf "\n\033[31mError: %s\033[0m\n" "$1" >&2; exit 1; }
@@ -26,21 +33,15 @@ die() { printf "\n\033[31mError: %s\033[0m\n" "$1" >&2; exit 1; }
 # --- preflight -------------------------------------------------------------
 
 say "Checking prerequisites"
-command -v docker >/dev/null || die "Docker is not installed. Install Docker Desktop and start it."
-docker info >/dev/null 2>&1 || die "Docker is installed but not running. Start Docker Desktop."
 command -v git >/dev/null || die "git is not installed."
+command -v brew >/dev/null || die "Homebrew is not installed. See https://brew.sh"
 
-if ! command -v cloudflared >/dev/null; then
-  command -v brew >/dev/null || die "cloudflared is missing and Homebrew is not installed."
-  say "Installing cloudflared"
-  brew install cloudflared
-fi
+PYTHON="$(command -v python3.12 || command -v python3 || true)"
+[ -n "$PYTHON" ] || die "No python3 found. Try: brew install python@3.12"
+"$PYTHON" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' \
+  || die "Python 3.11 or newer is required. Try: brew install python@3.12"
 
-if ! command -v gh >/dev/null; then
-  command -v brew >/dev/null || die "gh is missing and Homebrew is not installed."
-  brew install gh
-fi
-gh auth status >/dev/null 2>&1 || die "Run 'gh auth login' first — the repository is private."
+command -v cloudflared >/dev/null || { say "Installing cloudflared"; brew install cloudflared; }
 
 # --- source ----------------------------------------------------------------
 
@@ -48,37 +49,60 @@ if [ -d "$CHECKOUT/.git" ]; then
   say "Updating $CHECKOUT"
   git -C "$CHECKOUT" pull --ff-only
 else
-  say "Cloning into $CHECKOUT"
-  gh repo clone "$REPO" "$CHECKOUT"
+  die "$CHECKOUT is not a checkout. Clone the repository there first."
 fi
 
-# --- the API ---------------------------------------------------------------
+# --- the service -----------------------------------------------------------
 
-say "Building the image"
-docker build -t warmline-api "$CHECKOUT"
+say "Installing dependencies"
+"$PYTHON" -m venv "$CHECKOUT/.venv"
+"$CHECKOUT/.venv/bin/pip" install --quiet --upgrade pip
+"$CHECKOUT/.venv/bin/pip" install --quiet -e "$CHECKOUT"
 
-say "Starting the container"
-docker rm -f warmline-api >/dev/null 2>&1 || true
-docker volume create warmline-data >/dev/null
-docker run -d \
-  --name warmline-api \
-  --restart unless-stopped \
-  -p "127.0.0.1:${PORT}:8000" \
-  -e PORT=8000 \
-  -e WARMLINE_DB=/data/warmline.sqlite3 \
-  -e "WARMLINE_ALLOWED_ORIGINS=${PAGE_ORIGIN}" \
-  -v warmline-data:/data \
-  warmline-api >/dev/null
+mkdir -p "$CHECKOUT/data" "$CHECKOUT/logs"
 
-# Bound to 127.0.0.1 on purpose: the only way in is the tunnel, so the API is
-# not reachable from anything else on the home network.
+say "Writing the launchd daemon"
+sudo tee "$PLIST" >/dev/null <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>${LABEL}</string>
+  <key>UserName</key><string>$(whoami)</string>
+  <key>WorkingDirectory</key><string>${CHECKOUT}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${CHECKOUT}/.venv/bin/uvicorn</string>
+    <string>warmline.api.main:app</string>
+    <string>--host</string><string>127.0.0.1</string>
+    <string>--port</string><string>${PORT}</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>WARMLINE_DB</key><string>${CHECKOUT}/data/warmline.sqlite3</string>
+    <key>WARMLINE_ALLOWED_ORIGINS</key><string>${PAGE_ORIGIN}</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>${CHECKOUT}/logs/api.log</string>
+  <key>StandardErrorPath</key><string>${CHECKOUT}/logs/api.err</string>
+</dict>
+</plist>
+EOF
+
+say "Starting the service"
+sudo launchctl bootout "system/${LABEL}" 2>/dev/null || true
+sudo launchctl bootstrap system "$PLIST"
+sudo launchctl kickstart -k "system/${LABEL}"
 
 say "Waiting for the API"
 for _ in $(seq 1 30); do
-  if curl -fsS "http://127.0.0.1:${PORT}/healthz" >/dev/null 2>&1; then break; fi
+  curl -fsS "http://127.0.0.1:${PORT}/healthz" >/dev/null 2>&1 && break
   sleep 1
 done
-curl -fsS "http://127.0.0.1:${PORT}/healthz" >/dev/null || die "The API did not come up. Try: docker logs warmline-api"
+curl -fsS "http://127.0.0.1:${PORT}/healthz" >/dev/null \
+  || die "The API did not come up. Try: tail -50 ${CHECKOUT}/logs/api.err"
 echo "API is up on 127.0.0.1:${PORT}"
 
 # --- the tunnel ------------------------------------------------------------
@@ -88,12 +112,12 @@ if [ ! -f "$HOME/.cloudflared/cert.pem" ]; then
   cloudflared tunnel login
 fi
 
-if ! cloudflared tunnel list 2>/dev/null | grep -q "\b${TUNNEL}\b"; then
+if ! cloudflared tunnel list 2>/dev/null | grep -qE "[[:space:]]${TUNNEL}[[:space:]]"; then
   say "Creating the tunnel"
   cloudflared tunnel create "$TUNNEL"
 fi
 
-TUNNEL_ID="$(cloudflared tunnel list --output json | python3 -c \
+TUNNEL_ID="$(cloudflared tunnel list --output json | "$PYTHON" -c \
   "import json,sys; print(next(t['id'] for t in json.load(sys.stdin) if t['name']=='${TUNNEL}'))")"
 
 say "Writing the tunnel config"
@@ -109,11 +133,13 @@ ingress:
 EOF
 
 say "Pointing ${API_HOST} at the tunnel"
-cloudflared tunnel route dns "$TUNNEL" "$API_HOST" || \
-  echo "(DNS record already exists — carrying on)"
+cloudflared tunnel route dns "$TUNNEL" "$API_HOST" \
+  || echo "(DNS record already exists — carrying on)"
 
-say "Installing cloudflared as a service so it survives a reboot"
-sudo cloudflared service install 2>/dev/null || sudo launchctl kickstart -k system/com.cloudflare.cloudflared || true
+say "Installing cloudflared as a service"
+sudo cloudflared service install 2>/dev/null \
+  || sudo launchctl kickstart -k system/com.cloudflare.cloudflared \
+  || true
 
 # --- keep the machine awake ------------------------------------------------
 
@@ -126,10 +152,10 @@ cat <<EOF
   API (local):  http://127.0.0.1:${PORT}/healthz
   API (public): https://${API_HOST}/healthz
 
-Give DNS a minute, then check the public URL. If it 502s, the tunnel is up but
-the container is not: docker logs warmline-api
+Give DNS a minute, then check the public URL.
 
-To update later:  bash deploy/mac-mini.sh
-To stop:          docker rm -f warmline-api && sudo cloudflared service uninstall
+  Update:   bash ${CHECKOUT}/deploy/mac-mini.sh
+  Logs:     tail -f ${CHECKOUT}/logs/api.err
+  Stop:     sudo launchctl bootout system/${LABEL}
 
 EOF
