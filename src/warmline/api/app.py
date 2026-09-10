@@ -51,6 +51,26 @@ class SuppressionRequest(BaseModel):
     note: str | None = None
 
 
+#: Local dev. 3100 is the fallback when 3000 is taken by something else.
+LOCAL_ORIGINS = (
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3100",
+    "http://127.0.0.1:3100",
+)
+
+
+def _allowed_origins() -> list[str]:
+    """Deployed origins come from the environment, comma-separated.
+
+    An explicit list rather than a wildcard: the deployed page is the only
+    thing that should be driving this API from a browser.
+    """
+    configured = os.environ.get("WARMLINE_ALLOWED_ORIGINS", "")
+    extra = [origin.strip() for origin in configured.split(",") if origin.strip()]
+    return [*LOCAL_ORIGINS, *extra]
+
+
 def _now() -> datetime:
     return datetime.now(UTC)
 
@@ -77,13 +97,7 @@ def create_app(
     # The UI is served from a different port in development. Local origins only.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            # Fallback when 3000 is already taken by something else.
-            "http://localhost:3100",
-            "http://127.0.0.1:3100",
-        ],
+        allow_origins=_allowed_origins(),
         allow_methods=["*"],
         allow_headers=["*"],
     )
