@@ -26,11 +26,12 @@ from pydantic import BaseModel
 
 from warmline.config import load_claims_config, load_disclosure_config, load_policy_config
 from warmline.policy.engine import evaluate_pre_dial
-from warmline.postcall.checks import run_checks
+from warmline.postcall.checks import check_claims, run_checks
 from warmline.postcall.outcome import extract_outcome
 from warmline.postcall.transcript import normalise_transcript
 from warmline.providers import get_provider
 from warmline.providers.simulated import SimulatedProvider
+from warmline.scenarios import load_scenario
 from warmline.storage import repository
 from warmline.storage.db import connect, migrate
 
@@ -43,6 +44,10 @@ class CallRequest(BaseModel):
 
 class PolicyCheckRequest(BaseModel):
     as_of: datetime | None = None
+
+
+class SentenceCheckRequest(BaseModel):
+    text: str
 
 
 class SuppressionRequest(BaseModel):
@@ -141,6 +146,105 @@ def create_app(
     @app.get("/scenarios")
     def scenarios() -> dict:
         return {"scenarios": SimulatedProvider.available_scenarios()}
+
+    def _explain(verdict: str, rule_id: str | None) -> str:
+        """Why a sentence was classified the way it was, in plain language."""
+        if verdict == "prohibited":
+            rule = next((r for r in claims_config.prohibited_patterns if r.id == rule_id), None)
+            return rule.reason if rule and rule.reason else "Matches a prohibited pattern."
+        if verdict == "commitment":
+            rule = next((r for r in claims_config.commitment_patterns if r.id == rule_id), None)
+            return rule.reason if rule and rule.reason else "Commits to something out of scope."
+        if verdict == "permitted":
+            claim = claims_config.claim(rule_id or "")
+            return f"Matches the permitted claim {rule_id}: “{claim.canonical}”" if claim else ""
+        if verdict == "non_claim":
+            return (
+                "Not an assertion about the service — a greeting, acknowledgement, "
+                "question or scheduling."
+            )
+        return (
+            "Tier 1 could not place this against the allowlist. It is not waved through: "
+            "it is reported, and the keyed Tier 2 adjudicator is what would judge it."
+        )
+
+    @app.get("/scenarios/{scenario_id}")
+    def get_scenario(scenario_id: str) -> dict:
+        """A scenario with its transcript and everything the checkers make of it.
+
+        Used by the page to replay a call turn by turn and then show the checks
+        running over it. Reads nothing and writes nothing.
+        """
+        try:
+            scenario = load_scenario(scenario_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="no such scenario") from error
+
+        transcript = scenario.transcript()
+        checks = run_checks(transcript, claims_config, disclosure_config)
+        outcome = extract_outcome(transcript, checks)
+
+        return {
+            "id": scenario.id,
+            "label": scenario.label,
+            "description": scenario.description,
+            "transcript": transcript.to_dict(),
+            "checks": {
+                "disclosure_ok": checks.disclosure_ok,
+                "violations": [v.to_dict() for v in checks.violations],
+                "classifications": [
+                    {
+                        "turn_index": c.turn_index,
+                        "sentence": c.sentence,
+                        "verdict": c.verdict,
+                        "rule_id": c.rule_id,
+                        "explanation": _explain(c.verdict, c.rule_id),
+                    }
+                    for c in checks.classifications
+                ],
+                "opt_out_requested": checks.opt_out_requested,
+            },
+            "outcome": {
+                "interest": outcome.interest,
+                "has_news": outcome.has_news,
+                "news_summary": outcome.news_summary,
+                "meeting_requested": outcome.meeting_requested,
+                "meeting_preferences": outcome.meeting_preferences,
+                "opt_out_requested": outcome.opt_out_requested,
+            },
+        }
+
+    @app.post("/claims/check")
+    def check_sentence(body: SentenceCheckRequest) -> dict:
+        """Run arbitrary text through Tier 1 as though the agent had said it.
+
+        Deterministic, stateless, and no model involved — the same code path the
+        post-call check uses. This exists so that someone can attack the policy
+        layer directly instead of taking the test suite's word for it.
+        """
+        text = (body.text or "").strip()
+        if not text:
+            return {"sentences": [], "violations": []}
+
+        transcript = normalise_transcript(
+            {"turns": [{"role": "agent", "text": text}]},
+            source="scenario",
+            conversation_id="sandbox",
+        )
+        violations, classifications = check_claims(transcript, claims_config)
+
+        return {
+            "sentences": [
+                {
+                    "sentence": c.sentence,
+                    "verdict": c.verdict,
+                    "rule_id": c.rule_id,
+                    "explanation": _explain(c.verdict, c.rule_id),
+                }
+                for c in classifications
+            ],
+            "violations": [v.to_dict() for v in violations],
+        }
 
     def _prospect_view(connection: sqlite3.Connection, record) -> dict:
         attempt = repository.latest_attempt(connection, record.id)

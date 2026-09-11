@@ -386,3 +386,71 @@ def test_the_last_outcome_survives_a_later_block(db_and_client):
     row = next(p for p in client.get("/prospects").json()["prospects"] if p["id"] == "psp_0001")
     assert row["last_outcome"]["interest"] == "interested"
     assert row["last_policy_decision"]["primary_reason"] == "ATTEMPT_LIMIT_REACHED"
+
+
+# --- the interactive panel -------------------------------------------------
+
+
+def test_a_scenario_comes_back_with_its_transcript_and_checks(client):
+    body = client.get("/scenarios/invented_pricing_claim").json()
+
+    assert body["transcript"]["source"] == "scenario"
+    assert len(body["transcript"]["turns"]) > 2
+    assert [v["rule_id"] for v in body["checks"]["violations"]] == ["PRICE"]
+    assert any(c["verdict"] == "prohibited" for c in body["checks"]["classifications"])
+
+
+def test_every_classification_explains_itself(client):
+    """The page shows the explanation, so an empty one is a blank cell."""
+    body = client.get("/scenarios/compliant_meeting_booked").json()
+
+    assert all(c["explanation"].strip() for c in body["checks"]["classifications"])
+
+
+def test_an_unknown_scenario_is_a_404(client):
+    assert client.get("/scenarios/nope").status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("text", "verdict", "rule"),
+    [
+        ("Our retainers start at 5000 dollars a month.", "prohibited", "PRICE"),
+        ("We guarantee coverage.", "prohibited", "GUARANTEE"),
+        ("I'll keep this under a minute.", "permitted", "TIME_PROMISE"),
+        ("Is now a good time?", "non_claim", "QUESTION"),
+        ("I'll send the contract this afternoon.", "commitment", "AGREES_TO_SEND"),
+        ("Our consultants are all former journalists.", "unclassified", None),
+    ],
+)
+def test_the_sandbox_classifies_arbitrary_text(client, text, verdict, rule):
+    """The same Tier 1 code path the post-call check uses, exposed directly."""
+    body = client.post("/claims/check", json={"text": text}).json()
+
+    assert [s["verdict"] for s in body["sentences"]] == [verdict]
+    assert body["sentences"][0]["rule_id"] == rule
+    assert body["sentences"][0]["explanation"].strip()
+
+
+def test_the_sandbox_splits_multiple_sentences(client):
+    body = client.post(
+        "/claims/check", json={"text": "Hello. We charge 500 dollars. Is now a good time?"}
+    ).json()
+
+    assert [s["verdict"] for s in body["sentences"]] == ["non_claim", "prohibited", "non_claim"]
+    assert len(body["violations"]) == 1
+
+
+def test_the_sandbox_tolerates_empty_input(client):
+    assert client.post("/claims/check", json={"text": "   "}).json() == {
+        "sentences": [],
+        "violations": [],
+    }
+
+
+def test_the_sandbox_writes_nothing(db_and_client):
+    connection, client = db_and_client
+
+    client.post("/claims/check", json={"text": "We guarantee the front page."})
+
+    assert connection.execute("SELECT COUNT(*) FROM call_outcome").fetchone()[0] == 0
+    assert connection.execute("SELECT COUNT(*) FROM call_attempt").fetchone()[0] == 0

@@ -76,3 +76,70 @@ button:disabled { opacity: .5; cursor: default; }
 
 details summary { cursor: pointer; color: var(--muted); }
 pre { background: #f2f1ee; padding: .6rem; overflow-x: auto; font-size: 12px; }
+
+/* --- the call panel ------------------------------------------------------ */
+
+.panel {
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 1.1rem 1.2rem;
+  margin-bottom: 1.5rem;
+}
+
+.panel h2 { font-size: .95rem; margin: 0 0 .3rem; }
+.panel .hint { color: var(--muted); margin: 0 0 .9rem; max-width: 68ch; }
+
+.controls { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-bottom: .9rem; }
+
+.transcript {
+  border: 1px solid var(--line);
+  background: #fbfbfa;
+  padding: .8rem;
+  min-height: 7rem;
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
+.turn { display: flex; gap: .6rem; margin-bottom: .55rem; align-items: baseline; }
+.turn .who {
+  flex: 0 0 4.6rem;
+  font: 600 11px/1.5 ui-monospace, Menlo, monospace;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+.turn.agent .who { color: #2f5b6b; }
+.turn .said { flex: 1; }
+.turn.flagged .said {
+  background: #fdeaea;
+  border-left: 2px solid var(--block);
+  padding-left: .45rem;
+}
+
+.checks { margin-top: .9rem; border-top: 1px solid var(--line); padding-top: .8rem; }
+.checks h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 .5rem; }
+
+.verdict { display: flex; gap: .5rem; margin-bottom: .4rem; align-items: baseline; }
+.verdict .label {
+  flex: 0 0 7.5rem;
+  font: 600 11px/1.5 ui-monospace, Menlo, monospace;
+}
+.verdict.ok .label { color: var(--allow); }
+.verdict.bad .label { color: var(--block); }
+.verdict.neutral .label { color: var(--muted); }
+.verdict .body { flex: 1; }
+.verdict .body .why { color: var(--muted); font-size: .9em; display: block; }
+
+textarea {
+  width: 100%;
+  min-height: 4.2rem;
+  font: inherit;
+  padding: .5rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  resize: vertical;
+}
+
+.sandbox { margin-top: 1.2rem; border-top: 1px solid var(--line); padding-top: .9rem; }
+.examples { display: flex; gap: .35rem; flex-wrap: wrap; margin: .5rem 0; }
+.examples button { font-size: .82rem; padding: .2rem .45rem; color: var(--muted); }

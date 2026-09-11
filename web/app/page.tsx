@@ -26,7 +26,7 @@ type Decision = {
   blocking_reasons: string[];
   checks: Check[];
 };
-type Violation = { code: string; rule_id: string | null; quote: string };
+type Violation = { code: string; rule_id: string | null; quote: string; turn_index: number };
 type Outcome = {
   interest: string;
   disclosure_ok: boolean;
@@ -48,6 +48,230 @@ type Prospect = {
   last_outcome: Outcome | null;
 };
 type Scenario = { id: string; label: string };
+type Turn = { index: number; role: string; text: string };
+type Classification = {
+  turn_index: number;
+  sentence: string;
+  verdict: string;
+  rule_id: string | null;
+  explanation: string;
+};
+type ScenarioDetail = {
+  label: string;
+  description: string;
+  transcript: { turns: Turn[] };
+  checks: {
+    disclosure_ok: boolean;
+    violations: Violation[];
+    classifications: Classification[];
+  };
+  outcome: {
+    interest: string;
+    news_summary: string | null;
+    meeting_requested: boolean;
+    meeting_preferences: string | null;
+    opt_out_requested: boolean;
+  };
+};
+type SandboxResult = {
+  sentences: { sentence: string; verdict: string; rule_id: string | null; explanation: string }[];
+};
+
+const VERDICT_TONE: Record<string, string> = {
+  prohibited: "bad",
+  commitment: "bad",
+  unclassified: "neutral",
+  permitted: "ok",
+  non_claim: "neutral",
+};
+
+const VERDICT_LABEL: Record<string, string> = {
+  prohibited: "NOT ALLOWED",
+  commitment: "OUT OF SCOPE",
+  unclassified: "UNCLASSIFIED",
+  permitted: "PERMITTED",
+  non_claim: "NOT A CLAIM",
+};
+
+const SANDBOX_EXAMPLES = [
+  "We work with companies on press coverage.",
+  "Our retainers start at 5000 dollars a month.",
+  "We can get you into Forbes within 30 days.",
+  "We work with 400 companies, do you have news?",
+  "Our consultants are all former journalists.",
+];
+
+function CallPanel({ scenarios }: { scenarios: Scenario[] }) {
+  const [chosen, setChosen] = useState("");
+  const [detail, setDetail] = useState<ScenarioDetail | null>(null);
+  const [shown, setShown] = useState(0);
+  const [running, setRunning] = useState(false);
+  const [sandboxText, setSandboxText] = useState("");
+  const [sandbox, setSandbox] = useState<SandboxResult | null>(null);
+
+  const scenarioId = chosen || scenarios[0]?.id || "";
+  const turns = detail?.transcript.turns ?? [];
+  const finished = detail !== null && shown >= turns.length;
+
+  // Sentences the checker flagged, so the offending turn can be marked as the
+  // transcript plays rather than only in a list underneath it.
+  const flaggedTurns = new Set((detail?.checks.violations ?? []).map((v) => v.turn_index));
+
+  async function start() {
+    setRunning(true);
+    setDetail(null);
+    setShown(0);
+    const response = await fetch(`${API}/scenarios/${scenarioId}`);
+    const body: ScenarioDetail = await response.json();
+    setDetail(body);
+
+    for (let i = 1; i <= body.transcript.turns.length; i++) {
+      await new Promise((r) => setTimeout(r, i === 1 ? 250 : 850));
+      setShown(i);
+    }
+    setRunning(false);
+  }
+
+  async function checkSentence(text: string) {
+    setSandboxText(text);
+    if (!text.trim()) {
+      setSandbox(null);
+      return;
+    }
+    const response = await fetch(`${API}/claims/check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    setSandbox(await response.json());
+  }
+
+  return (
+    <div className="panel">
+      <h2>What a call looks like</h2>
+      <p className="hint">
+        Pick a conversation and play it. The agent&apos;s opening is fixed and discloses the AI;
+        everything after it is scripted. When the call ends, the same checks that run in
+        production run here, over the transcript you just watched.
+      </p>
+
+      <div className="controls">
+        <select value={scenarioId} onChange={(e) => setChosen(e.target.value)} disabled={running}>
+          {scenarios.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+        <button onClick={start} disabled={running || !scenarioId}>
+          {running ? "Call in progress…" : "Start call"}
+        </button>
+      </div>
+
+      {detail && (
+        <div className="transcript">
+          {turns.slice(0, shown).map((turn) => (
+            <div
+              key={turn.index}
+              className={`turn ${turn.role} ${flaggedTurns.has(turn.index) && finished ? "flagged" : ""}`}
+            >
+              <span className="who">{turn.role}</span>
+              <span className="said">{turn.text}</span>
+            </div>
+          ))}
+          {running && <div className="turn"><span className="who" /><span className="said">…</span></div>}
+        </div>
+      )}
+
+      {detail && finished && (
+        <div className="checks">
+          <h3>Post-call checks</h3>
+
+          <div className={`verdict ${detail.checks.disclosure_ok ? "ok" : "bad"}`}>
+            <span className="label">{detail.checks.disclosure_ok ? "DISCLOSED" : "NO DISCLOSURE"}</span>
+            <span className="body">
+              {detail.checks.disclosure_ok
+                ? "The agent said it was an AI in its first turn."
+                : "The agent never disclosed that it was an AI."}
+            </span>
+          </div>
+
+          {detail.checks.violations.length === 0 ? (
+            <div className="verdict ok">
+              <span className="label">NO VIOLATIONS</span>
+              <span className="body">Every sentence the agent said is inside the allowlist.</span>
+            </div>
+          ) : (
+            detail.checks.violations.map((v, i) => (
+              <div key={i} className="verdict bad">
+                <span className="label">{v.rule_id ?? v.code}</span>
+                <span className="body">
+                  “{v.quote}”
+                  <span className="why">
+                    {v.code}
+                    {" — "}
+                    {detail.checks.classifications.find((c) => c.sentence === v.quote)
+                      ?.explanation ?? ""}
+                  </span>
+                </span>
+              </div>
+            ))
+          )}
+
+          <div className="verdict neutral">
+            <span className="label">OUTCOME</span>
+            <span className="body">
+              {detail.outcome.interest.replace("_", " ")}
+              {detail.outcome.meeting_requested ? ", meeting requested" : ""}
+              {detail.outcome.meeting_preferences ? ` (${detail.outcome.meeting_preferences})` : ""}
+              {detail.outcome.opt_out_requested ? ", opted out — number suppressed" : ""}
+              {detail.outcome.news_summary && (
+                <span className="why">{detail.outcome.news_summary}</span>
+              )}
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div className="sandbox">
+        <h2>Try to get something past the checker</h2>
+        <p className="hint">
+          Type anything as though the agent had said it. This runs the same Tier 1 code the
+          post-call check uses — deterministic, no model involved — and reports what it makes of
+          each sentence.
+        </p>
+        <div className="examples">
+          {SANDBOX_EXAMPLES.map((example) => (
+            <button key={example} onClick={() => checkSentence(example)}>
+              {example}
+            </button>
+          ))}
+        </div>
+        <textarea
+          value={sandboxText}
+          placeholder="We can get you on the front page by next week."
+          onChange={(e) => checkSentence(e.target.value)}
+        />
+        {sandbox && sandbox.sentences.length > 0 && (
+          <div className="checks">
+            {sandbox.sentences.map((s, i) => (
+              <div key={i} className={`verdict ${VERDICT_TONE[s.verdict] ?? "neutral"}`}>
+                <span className="label">{VERDICT_LABEL[s.verdict] ?? s.verdict}</span>
+                <span className="body">
+                  “{s.sentence}”
+                  <span className="why">
+                    {s.rule_id ? `${s.rule_id} — ` : ""}
+                    {s.explanation}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function PolicyCell({ decision }: { decision: Decision | null }) {
   if (!decision) return <span style={{ color: "#6b6b66" }}>not checked</span>;
@@ -155,6 +379,8 @@ export default function Page() {
       </div>
 
       {error && <div className="banner">{error}</div>}
+
+      {scenarios.length > 0 && <CallPanel scenarios={scenarios} />}
 
       <table>
         <thead>
