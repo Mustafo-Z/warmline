@@ -172,9 +172,16 @@ say "Pointing ${API_HOST} at the tunnel"
 ROUTE_OUTPUT="$(cloudflared tunnel route dns "$TUNNEL" "$API_HOST" 2>&1 || true)"
 echo "$ROUTE_OUTPUT"
 
+# Match the hostname as a whole word. The wrong-zone case appends another
+# domain, so the giveaway is a dot straight after the hostname rather than
+# whitespace. Dots in the hostname are escaped so they cannot match anything.
+HOST_RE="$(printf '%s' "$API_HOST" | sed 's/\./\\./g')"
+
 if echo "$ROUTE_OUTPUT" | grep -q "already exists"; then
   echo "(DNS record already exists — carrying on)"
-elif echo "$ROUTE_OUTPUT" | grep -qE "Added CNAME ${API_HOST}[^.]"; then
+elif echo "$ROUTE_OUTPUT" | grep -qE "Added CNAME ${HOST_RE}([[:space:]]|$)"; then
+  echo "DNS record created correctly."
+elif echo "$ROUTE_OUTPUT" | grep -q "Added CNAME"; then
   cat <<EOF
 
 The DNS record was created in the wrong zone. cloudflared took the zone from
