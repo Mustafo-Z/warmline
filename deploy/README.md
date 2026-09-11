@@ -5,7 +5,7 @@ The demo is hosted in two halves.
 - **The page** is on Vercel at `warmline.mziyo.com`, built from `web/`, with
   `NEXT_PUBLIC_API_BASE` pointing at the API.
 - **The API** runs in Docker on a machine at home, reachable at
-  `api.warmline.mziyo.com` through a Cloudflare tunnel.
+  `warmline-api.mziyo.com` through a Cloudflare tunnel.
 
 `mac-mini.sh` sets up the second half. It installs the package into a virtual
 environment, runs uvicorn under launchd bound to `127.0.0.1` only, opens a

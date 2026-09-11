@@ -21,7 +21,11 @@ set -euo pipefail
 
 CHECKOUT="${WARMLINE_DIR:-$HOME/warmline}"
 TUNNEL="warmline"
-API_HOST="api.warmline.mziyo.com"
+# Single-level on purpose. Cloudflare's free Universal SSL covers mziyo.com and
+# *.mziyo.com but not *.*.mziyo.com, so api.warmline.mziyo.com gets no
+# certificate and fails the TLS handshake. Two levels deep needs paid Advanced
+# Certificate Manager; renaming is free.
+API_HOST="warmline-api.mziyo.com"
 PAGE_ORIGIN="https://warmline.mziyo.com"
 PORT="8000"
 LABEL="com.mziyo.warmline"
