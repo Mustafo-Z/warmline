@@ -30,6 +30,8 @@ PAGE_ORIGIN="https://warmline.mziyo.com"
 PORT="8000"
 LABEL="com.mziyo.warmline"
 PLIST="/Library/LaunchDaemons/${LABEL}.plist"
+TUNNEL_LABEL="com.mziyo.warmline-tunnel"
+TUNNEL_PLIST="/Library/LaunchDaemons/${TUNNEL_LABEL}.plist"
 
 say() { printf "\n\033[1m==> %s\033[0m\n" "$1"; }
 die() { printf "\n\033[31mError: %s\033[0m\n" "$1" >&2; exit 1; }
@@ -207,10 +209,52 @@ EOF
   die "Wrong DNS zone — see above."
 fi
 
-say "Installing cloudflared as a service"
-sudo cloudflared service install 2>/dev/null \
-  || sudo launchctl kickstart -k system/com.cloudflare.cloudflared \
-  || true
+say "Installing the tunnel as its own service"
+# Deliberately NOT `cloudflared service install`. That installs a single
+# daemon called com.cloudflare.cloudflared, and on a machine already running
+# another tunnel it silently does nothing: the existing service keeps serving
+# the other tunnel, this one gets no connections, and every request returns
+# Cloudflare error 1033 while the logs cheerfully report a healthy tunnel.
+#
+# So this tunnel gets its own labelled daemon and leaves any existing one alone.
+CLOUDFLARED_BIN="$(command -v cloudflared)"
+sudo tee "$TUNNEL_PLIST" >/dev/null <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>${TUNNEL_LABEL}</string>
+  <key>UserName</key><string>$(whoami)</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${CLOUDFLARED_BIN}</string>
+    <string>--no-autoupdate</string>
+    <string>--config</string><string>${HOME}/.cloudflared/config.yml</string>
+    <string>tunnel</string><string>run</string><string>${TUNNEL}</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>${CHECKOUT}/logs/tunnel.log</string>
+  <key>StandardErrorPath</key><string>${CHECKOUT}/logs/tunnel.err</string>
+</dict>
+</plist>
+EOF
+
+sudo launchctl bootout "system/${TUNNEL_LABEL}" 2>/dev/null || true
+for _ in $(seq 1 20); do
+  sudo launchctl print "system/${TUNNEL_LABEL}" >/dev/null 2>&1 || break
+  sleep 0.5
+done
+sudo launchctl bootstrap system "$TUNNEL_PLIST" 2>/dev/null || true
+sudo launchctl kickstart -k "system/${TUNNEL_LABEL}" 2>/dev/null || true
+
+say "Waiting for the tunnel to register"
+for _ in $(seq 1 30); do
+  if cloudflared tunnel info "$TUNNEL" 2>/dev/null | grep -qi "connector\|CONNECTOR ID\|ams\|lhr\|iad"; then break; fi
+  sleep 2
+done
+cloudflared tunnel info "$TUNNEL" 2>/dev/null | head -6 || true
 
 # --- keep the machine awake ------------------------------------------------
 
@@ -227,6 +271,7 @@ Give DNS a minute, then check the public URL.
 
   Update:   bash ${CHECKOUT}/deploy/mac-mini.sh
   Logs:     tail -f ${CHECKOUT}/logs/api.err
-  Stop:     sudo launchctl bootout system/${LABEL}
+  Tunnel:   tail -f ${CHECKOUT}/logs/tunnel.err
+  Stop:     sudo launchctl bootout system/${LABEL} && sudo launchctl bootout system/${TUNNEL_LABEL}
 
 EOF
