@@ -120,9 +120,20 @@ sudo tee "$PLIST" >/dev/null <<EOF
 EOF
 
 say "Starting the service"
+# bootout is asynchronous. Firing bootstrap before the old job has finished
+# unloading fails with "Bootstrap failed: 5: Input/output error", so wait for
+# it to actually go away first.
 sudo launchctl bootout "system/${LABEL}" 2>/dev/null || true
-sudo launchctl bootstrap system "$PLIST"
-sudo launchctl kickstart -k "system/${LABEL}"
+for _ in $(seq 1 20); do
+  sudo launchctl print "system/${LABEL}" >/dev/null 2>&1 || break
+  sleep 0.5
+done
+
+# Neither of these is fatal on its own: the service may already be loaded, in
+# which case kickstart is enough. Whether it actually came up is decided by the
+# health check below, not by these exit codes.
+sudo launchctl bootstrap system "$PLIST" 2>/dev/null || true
+sudo launchctl kickstart -k "system/${LABEL}" 2>/dev/null || true
 
 say "Waiting for the API"
 for _ in $(seq 1 30); do
