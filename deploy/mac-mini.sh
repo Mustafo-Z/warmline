@@ -134,6 +134,10 @@ echo "API is up on 127.0.0.1:${PORT}"
 if [ ! -f "$HOME/.cloudflared/cert.pem" ]; then
   say "Authorising cloudflared (a browser window will open)"
   cloudflared tunnel login
+else
+  echo "Using the existing cloudflared certificate."
+  echo "If it was issued for a different domain than ${API_HOST}, run"
+  echo "'cloudflared tunnel login' again and pick the right zone."
 fi
 
 if ! cloudflared tunnel list 2>/dev/null | grep -qE "[[:space:]]${TUNNEL}[[:space:]]"; then
@@ -157,8 +161,29 @@ ingress:
 EOF
 
 say "Pointing ${API_HOST} at the tunnel"
-cloudflared tunnel route dns "$TUNNEL" "$API_HOST" \
-  || echo "(DNS record already exists — carrying on)"
+# cloudflared picks the zone from ~/.cloudflared/cert.pem. If that cert was
+# issued for a different domain, it does not fail — it quietly creates
+# "api.warmline.mziyo.com.someotherdomain.com" and reports success. So check
+# what it actually made rather than trusting the exit code.
+ROUTE_OUTPUT="$(cloudflared tunnel route dns "$TUNNEL" "$API_HOST" 2>&1 || true)"
+echo "$ROUTE_OUTPUT"
+
+if echo "$ROUTE_OUTPUT" | grep -q "already exists"; then
+  echo "(DNS record already exists — carrying on)"
+elif echo "$ROUTE_OUTPUT" | grep -qE "Added CNAME ${API_HOST}[^.]"; then
+  cat <<EOF
+
+The DNS record was created in the wrong zone. cloudflared took the zone from
+\$HOME/.cloudflared/cert.pem, which belongs to a different domain, and appended
+${API_HOST} to it as a subdomain.
+
+  1. cloudflared tunnel login          # choose the zone for ${API_HOST}
+  2. cloudflared tunnel route dns ${TUNNEL} ${API_HOST}
+  3. Delete the wrong record in the Cloudflare dashboard.
+
+EOF
+  die "Wrong DNS zone — see above."
+fi
 
 say "Installing cloudflared as a service"
 sudo cloudflared service install 2>/dev/null \
