@@ -9,6 +9,8 @@ layer around it: the checks that decide whether a call may be placed at all,
 and the checks that verify afterwards whether the agent stayed inside what it
 was permitted to say.
 
+Running at **https://warmline.mziyo.com**.
+
 **This build places no telephone calls.** Calls are simulated by replaying
 version-controlled conversation scenarios through the same pipeline a real call
 would take. No call was placed in the making of this project and no transcript
@@ -89,6 +91,29 @@ which is the point.
 .venv/bin/python -m pytest        # 182 tests, no keys, no network
 .venv/bin/ruff check .
 ```
+
+## Where this is running
+
+The page is on Vercel. The API runs under launchd on a machine at home, reached
+through a Cloudflare tunnel at `warmline-api.mziyo.com` — no port forwarding,
+no public IP, and the service binds to localhost so the tunnel is the only way
+in. `deploy/mac-mini.sh` sets that up and `deploy/README.md` explains it.
+
+Self-hosted, so it can be briefly unavailable if that machine restarts. Running
+it locally takes about a minute and needs nothing but Python and Node.
+
+What you will see depends on when you look, which is the point:
+
+- **Inside UAE calling hours**, the first prospect is callable and the rest each
+  block for a different reason — expired consent, withdrawn consent, a
+  suppressed number, no consent record, a number that is not on the verified
+  allowlist.
+- **Outside them**, every row blocks on calling hours as well. A simulated call
+  goes through the same gate a real one would; being simulated is not a way
+  around the policy layer.
+- The attempt limit is one call per number per 24 hours, so a second simulated
+  call to the same prospect is refused. That is the limit working, not the
+  demo breaking.
 
 ## How it is verified
 
