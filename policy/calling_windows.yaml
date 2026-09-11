@@ -1,7 +1,13 @@
 # Calling-hours policy. SPEC 4.2.
 #
-# Windows are half-open, [start, end): with 09:00-18:00, a call at exactly
-# 09:00:00 local is allowed and one at exactly 18:00:00 local is blocked.
+# Windows are per day and half-open, [start, end): with 09:00-18:00, a call at
+# exactly 09:00:00 local is allowed and one at exactly 18:00:00 local is
+# blocked. A day absent from a profile is not a calling day at all.
+#
+# Per day rather than one window plus a list of days, because a working week is
+# not always uniform: the UAE's Friday is a half day, and flattening that would
+# mean either calling people on Friday afternoon or not calling them on Friday
+# at all. Both are wrong.
 #
 # AE is the default and the profile the seed data uses. UK and US exist so the
 # timezone logic is proven against more than one window; they are exercised by
@@ -11,18 +17,34 @@ policy_version: "1.0.0"
 default_profile: AE
 
 profiles:
+  # The UAE moved to a Monday-Friday working week in January 2022. The weekend
+  # is Saturday and Sunday, and Friday is a half day for the federal sector.
+  # This project had sun-thu until 2026-09-11, which was the pre-2022 week and
+  # had been wrong for four years.
   AE:
     countries: [AE]
-    days: [sun, mon, tue, wed, thu]
-    window: { start: "09:00", end: "18:00" }
+    days:
+      mon: { start: "09:00", end: "18:00" }
+      tue: { start: "09:00", end: "18:00" }
+      wed: { start: "09:00", end: "18:00" }
+      thu: { start: "09:00", end: "18:00" }
+      fri: { start: "09:00", end: "12:00" }
   UK:
     countries: [GB]
-    days: [mon, tue, wed, thu, fri]
-    window: { start: "09:00", end: "18:00" }
+    days:
+      mon: { start: "09:00", end: "18:00" }
+      tue: { start: "09:00", end: "18:00" }
+      wed: { start: "09:00", end: "18:00" }
+      thu: { start: "09:00", end: "18:00" }
+      fri: { start: "09:00", end: "18:00" }
   US:
     countries: [US, CA]
-    days: [mon, tue, wed, thu, fri]
-    window: { start: "09:00", end: "20:00" }
+    days:
+      mon: { start: "09:00", end: "20:00" }
+      tue: { start: "09:00", end: "20:00" }
+      wed: { start: "09:00", end: "20:00" }
+      thu: { start: "09:00", end: "20:00" }
+      fri: { start: "09:00", end: "20:00" }
 
 attempt_limits:
   max_per_24h: 1

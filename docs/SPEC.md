@@ -163,6 +163,7 @@ as it was put, the answer, and the reasoning are in the [decision log](#11-decis
 | Claim check | Layered — Tier 1 deterministic in CI, Tier 2 LLM adjudicator keyed and manual | §5.2, §9.3 |
 | Calling hours | IANA timezone on the prospect + per-region window config; E.164 prefix cross-checked | §4.2 |
 | Default region | `AE`; seed data is UAE, `UK` and `US` profiles exercised by tests | §4.2 |
+| Calling windows | Per day, not one window plus a day list — the UAE's Friday is a half day | §4.2 |
 | Consent | A record with lawful basis, timestamps and evidence — not a boolean | §4.2, §6.2 |
 | Consent expiry | 180 days from capture; one seed prospect seeded already-expired | §6.2 |
 | Attempt limits | 1 per 24h, 3 per rolling 7 days; only calls that reached a provider count | §4.2 |
@@ -244,44 +245,44 @@ defeats the hours check should not be survivable. `warn` is available in config
 and both settings are covered by tests.
 
 **`OUTSIDE_CALLING_HOURS`** converts `now` (a UTC instant) to the prospect's
-IANA timezone and compares local wall-clock time against the window for the
-prospect's region profile. Window semantics are **half-open, `[start, end)`**:
-with a `09:00–18:00` window, `09:00:00` local is allowed and `18:00:00` local is
-blocked. This is stated because it is the single most likely place for the
-implementation and the tests to disagree silently.
+IANA timezone and compares local wall-clock time against the window **for that
+day** in the prospect's region profile. Window semantics are **half-open,
+`[start, end)`**: with a `09:00–18:00` window, `09:00:00` local is allowed and
+`18:00:00` local is blocked. This is stated because it is the single most likely
+place for the implementation and the tests to disagree silently.
+
+Windows are per day rather than one window plus a list of permitted days,
+because a working week is not always uniform. The UAE's Friday is a half day; a
+single window would mean either calling people on Friday afternoon or not
+calling them on Friday at all, and both are wrong. A day with no window is not a
+calling day.
 
 `policy/calling_windows.yaml`:
 
 ```yaml
 policy_version: "1.0.0"
 default_profile: AE
+
 profiles:
   AE:
     countries: [AE]
-    days: [sun, mon, tue, wed, thu]
-    window: { start: "09:00", end: "18:00" }
+    days:
+      mon: { start: "09:00", end: "18:00" }
+      tue: { start: "09:00", end: "18:00" }
+      wed: { start: "09:00", end: "18:00" }
+      thu: { start: "09:00", end: "18:00" }
+      fri: { start: "09:00", end: "12:00" }   # half day
   UK:
     countries: [GB]
-    days: [mon, tue, wed, thu, fri]
-    window: { start: "09:00", end: "18:00" }
+    days: { mon: …, tue: …, wed: …, thu: …, fri: { start: "09:00", end: "18:00" } }
   US:
     countries: [US, CA]
-    days: [mon, tue, wed, thu, fri]
-    window: { start: "09:00", end: "20:00" }
+    days: { mon: …, …, fri: { start: "09:00", end: "20:00" } }
 
-# What TIMEZONE_PREFIX_MISMATCH does when it fires.
 timezone_mismatch_action: block
-
-# Countries each supported timezone belongs to, used by
-# TIMEZONE_PREFIX_MISMATCH. Hand-maintained on purpose: this is
-# policy-relevant geography, so it belongs in a file a reviewer can diff
-# rather than inside a dependency. A timezone absent from this map is not
-# trusted — the check returns CHECK_NOT_EVALUABLE, which blocks.
 timezone_countries:
   Asia/Dubai: [AE]
   Europe/London: [GB]
-  America/New_York: [US]
-  America/Los_Angeles: [US]
   # ... and the other supported zones
 ```
 
@@ -1122,6 +1123,25 @@ conclusions hides the part that was actually judgement.
 13. **The UI gets a dry-run "check policy" button.** *Why:* the endpoint already
     exists for the tests, and it is the clearest way to show the policy layer to
     someone who will not read the test suite.
+
+### Taken after the code was running
+
+**The UAE working week was wrong, and the config could not express the right one.**
+
+*Question:* why does every prospect block on a Friday?
+
+*Answer:* because the `AE` profile permitted Sunday to Thursday — the pre-2022
+UAE working week. The UAE moved to Monday–Friday in January 2022, with Saturday
+and Sunday as the weekend and Friday a half day. The rule had been wrong for
+four years.
+
+*Reasoning:* the fix was not just editing a list. A half day cannot be expressed
+as one window plus a set of days, so calling windows became per day. That is
+more faithful to how working weeks actually differ, and it is the kind of
+jurisdictional detail this project claims to take seriously — a compliance
+layer with an out-of-date compliance rule at the centre of it would have been
+the wrong thing to be confident about. The old value is recorded in the config
+file's comments rather than quietly replaced.
 
 ### Taken after the draft, changing the shape of the project
 

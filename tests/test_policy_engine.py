@@ -238,12 +238,47 @@ def test_window_boundaries_are_half_open(config, instant, expected, why):
 
 
 def test_non_permitted_local_day_blocks(config):
-    """Friday is outside the AE profile's days."""
-    decision = evaluate_pre_dial(make_request(now=at("2026-09-11T08:00:00Z")), config)
+    """Saturday is not a calling day anywhere. 2026-09-12 is a Saturday."""
+    decision = evaluate_pre_dial(make_request(now=at("2026-09-12T06:00:00Z")), config)
 
     outcome = check(decision, codes.OUTSIDE_CALLING_HOURS)
     assert outcome.result == "block"
-    assert outcome.detail["local_day"] == "fri"
+    assert outcome.detail["local_day"] == "sat"
+    assert outcome.detail["window"] is None
+    assert "not a permitted calling day" in outcome.message
+
+
+def test_sunday_is_not_a_calling_day_in_the_uae(config):
+    """It was until 2022. Getting this wrong means calling people at the weekend."""
+    decision = evaluate_pre_dial(make_request(now=at("2026-09-13T06:00:00Z")), config)
+
+    assert codes.OUTSIDE_CALLING_HOURS in decision.blocking_reasons
+    assert check(decision, codes.OUTSIDE_CALLING_HOURS).detail["local_day"] == "sun"
+
+
+@pytest.mark.parametrize(
+    ("instant", "expected", "why"),
+    [
+        ("2026-09-11T05:00:00Z", "allow", "09:00:00 Friday, exactly at the start"),
+        ("2026-09-11T07:00:00Z", "allow", "11:00 Friday, inside the half day"),
+        ("2026-09-11T07:59:59Z", "allow", "11:59:59 Friday, one second before the end"),
+        ("2026-09-11T08:00:00Z", "block", "12:00:00 Friday, exactly at the half-day end"),
+        ("2026-09-11T09:00:00Z", "block", "13:00 Friday, after the half day"),
+    ],
+)
+def test_the_uae_friday_half_day_has_its_own_boundary(config, instant, expected, why):
+    """Friday closes at 12:00 while the rest of the week runs to 18:00."""
+    decision = evaluate_pre_dial(make_request(now=at(instant)), config)
+
+    assert decision.decision == expected, why
+
+
+def test_friday_afternoon_waits_until_monday(config):
+    """Friday closes at noon and the weekend follows, so the next call is Monday."""
+    decision = evaluate_pre_dial(make_request(now=at("2026-09-11T09:00:00Z")), config)
+
+    outcome = check(decision, codes.OUTSIDE_CALLING_HOURS)
+    assert outcome.retry_after == at("2026-09-14T05:00:00Z")
 
 
 def test_dst_moves_the_same_utc_time_across_the_london_window_edge(config):
@@ -287,11 +322,11 @@ def test_out_of_hours_reports_when_it_would_pass(config):
 
 
 def test_retry_after_skips_a_non_permitted_day(config):
-    """After Thursday's window closes, the next AE opening is Sunday."""
+    """After Thursday's window closes, the next AE opening is Friday morning."""
     decision = evaluate_pre_dial(make_request(now=at("2026-09-10T15:00:00Z")), config)
 
     outcome = check(decision, codes.OUTSIDE_CALLING_HOURS)
-    assert outcome.retry_after == at("2026-09-13T05:00:00Z")
+    assert outcome.retry_after == at("2026-09-11T05:00:00Z")
 
 
 def test_out_of_hours_message_does_not_leak_the_number(config):
@@ -667,7 +702,7 @@ def test_decision_serialises_to_the_documented_shape(config):
     assert hours["detail"]["timezone"] == "Asia/Dubai"
     assert hours["detail"]["profile"] == "AE"
     assert hours["detail"]["window"] == {"start": "09:00", "end": "18:00"}
-    assert hours["detail"]["permitted_days"] == ["sun", "mon", "tue", "wed", "thu"]
+    assert hours["detail"]["permitted_days"] == ["mon", "tue", "wed", "thu", "fri"]
 
 
 def test_decision_is_json_serialisable(config):

@@ -63,9 +63,10 @@ def load_policy_config(policy_dir: Path | None = None) -> PolicyConfig:
         profiles[name] = RegionProfile(
             name=name,
             countries=tuple(raw["countries"]),
-            days=tuple(day.lower() for day in raw["days"]),
-            window_start=_parse_hhmm(raw["window"]["start"]),
-            window_end=_parse_hhmm(raw["window"]["end"]),
+            windows={
+                day.lower(): (_parse_hhmm(hours["start"]), _parse_hhmm(hours["end"]))
+                for day, hours in (raw["days"] or {}).items()
+            },
         )
 
     verified: dict[str, VerifiedNumber] = {}

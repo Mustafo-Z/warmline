@@ -20,16 +20,34 @@ def test_the_three_profiles_match_the_spec(config):
     assert set(config.profiles) == {"AE", "UK", "US"}
 
     ae = config.profiles["AE"]
-    assert ae.days == ("sun", "mon", "tue", "wed", "thu")
-    assert (ae.window_start, ae.window_end) == (time(9, 0), time(18, 0))
+    assert ae.days == ("mon", "tue", "wed", "thu", "fri")
+    assert ae.window_for("wed") == (time(9, 0), time(18, 0))
+    assert ae.window_for("sat") is None
+    assert ae.window_for("sun") is None
 
     uk = config.profiles["UK"]
     assert uk.days == ("mon", "tue", "wed", "thu", "fri")
-    assert (uk.window_start, uk.window_end) == (time(9, 0), time(18, 0))
+    assert uk.window_for("mon") == (time(9, 0), time(18, 0))
 
     us = config.profiles["US"]
     assert us.days == ("mon", "tue", "wed", "thu", "fri")
-    assert (us.window_start, us.window_end) == (time(9, 0), time(20, 0))
+    assert us.window_for("mon") == (time(9, 0), time(20, 0))
+
+
+def test_the_uae_friday_is_a_half_day(config):
+    """The UAE moved to a Mon-Fri week in 2022, with Friday a half day.
+
+    Asserted on its own because it is the reason windows are per day rather
+    than one window plus a list of days, and because this project had the
+    pre-2022 week until someone noticed.
+    """
+    assert config.profiles["AE"].window_for("fri") == (time(9, 0), time(12, 0))
+
+
+def test_no_profile_permits_calling_at_the_weekend(config):
+    for profile in config.profiles.values():
+        assert "sat" not in profile.days
+        assert "sun" not in profile.days
 
 
 def test_attempt_limits_match_the_spec(config):

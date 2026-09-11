@@ -75,11 +75,15 @@ Then open the page the dev server prints. Copy `.env.example` to `.env` if you
 want to exercise the webhook; nothing else needs configuration.
 
 **If every row shows "Outside permitted calling hours", the system is working.**
-The seed data is in `Asia/Dubai` and the window is 09:00–18:00, Sunday to
-Thursday. Outside those hours the gate blocks simulated calls exactly as it
-would block real ones, which is deliberate. To see a completed call outside
-office hours, widen the window in `policy/calling_windows.yaml` — a policy
-change, visible as a diff, which is the point.
+The seed data is in `Asia/Dubai`. Calling hours are 09:00–18:00 Monday to
+Thursday and 09:00–12:00 on Friday, with no calling at the weekend — the UAE
+working week since 2022, including its half day. Outside those hours the gate
+blocks simulated calls exactly as it would block real ones, which is
+deliberate: a simulated call is not a way around the policy layer.
+
+To see a completed call outside office hours, widen the window in
+`policy/calling_windows.yaml`. That is a policy change and shows up as a diff,
+which is the point.
 
 ```bash
 .venv/bin/python -m pytest        # 182 tests, no keys, no network
@@ -94,10 +98,11 @@ tell which ones needed a credit card.
 **Deterministic — 182 tests, no API key, no network, runs in CI on every push.**
 
 - The policy engine, tested before it was written. Every consent state, both
-  sides of every calling-window boundary, the same UTC instant allowed in one
-  timezone and blocked in another, DST either side of a transition, attempt
-  limits at and around the boundary, malformed input, and a combinatorial
-  check that the engine never allows when any check blocks.
+  sides of every calling-window boundary including the UAE's Friday half day,
+  the same UTC instant allowed in one timezone and blocked in another, DST
+  either side of a transition, attempt limits at and around the boundary,
+  malformed input, and a combinatorial check that the engine never allows when
+  any check blocks.
 - The whole scenario library through the real checkers, asserting each scenario
   raises the violations it should **and no others**.
 - The agent's own opening line, run through its own disclosure and claim
@@ -167,6 +172,15 @@ before allowlist matching and flagged "I'll send a calendar invite" as agreeing
 to send a document. A non-claim pattern anchored to a prefix rather than the
 whole sentence would have dismissed the entire disclosure as a greeting. None
 of these would have failed a test that had been written to match the code.
+
+**The most useful correction came from looking at the running system.** Every
+prospect was blocking on a Friday, which was correct according to the config
+and wrong according to the calendar: the `AE` profile encoded the pre-2022 UAE
+working week, which changed to Monday–Friday in January 2022. Fixing it meant
+changing the shape of the config, because a half-day Friday cannot be expressed
+as one window plus a list of days. Calling windows are now per day. A
+compliance layer carrying a four-year-old compliance rule is the specific kind
+of wrong this project exists to avoid.
 
 **Running it found what the tests did not.** Two bugs appeared within a minute
 of opening the page, both committed with regression tests in `8de7bae`. One

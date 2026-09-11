@@ -76,11 +76,27 @@ class PreDialRequest:
 
 @dataclass(frozen=True)
 class RegionProfile:
+    """A calling policy for one region, with a window per working day.
+
+    Per day rather than one window plus a list of days: a working week is not
+    always uniform. The UAE's Friday is a half day, and a single window would
+    mean either calling people on Friday afternoon or not calling them on
+    Friday at all.
+    """
+
     name: str
     countries: tuple[str, ...]
-    days: tuple[str, ...]
-    window_start: time
-    window_end: time
+    #: Day abbreviation ("mon") to (start, end). A day absent from this mapping
+    #: is not a calling day.
+    windows: dict[str, tuple[time, time]]
+
+    @property
+    def days(self) -> tuple[str, ...]:
+        order = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+        return tuple(day for day in order if day in self.windows)
+
+    def window_for(self, day: str) -> tuple[time, time] | None:
+        return self.windows.get(day)
 
 
 @dataclass(frozen=True)

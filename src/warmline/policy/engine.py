@@ -270,10 +270,10 @@ def _inside_calling_hours(
 
     local = now.astimezone(tz)
     local_day = _WEEKDAYS[local.weekday()]
-    window = {
-        "start": profile.window_start.strftime("%H:%M"),
-        "end": profile.window_end.strftime("%H:%M"),
-    }
+    today = profile.window_for(local_day)
+    window = (
+        {"start": today[0].strftime("%H:%M"), "end": today[1].strftime("%H:%M")} if today else None
+    )
     detail = {
         "timezone": prospect.timezone,
         "local_time": local.isoformat(),
@@ -283,16 +283,16 @@ def _inside_calling_hours(
         "permitted_days": list(profile.days),
     }
 
-    day_permitted = local_day in profile.days
-    # Half-open, [start, end): 09:00:00 is inside, 18:00:00 is not.
-    inside_window = profile.window_start <= local.time() < profile.window_end
+    # Half-open, [start, end): 09:00:00 is inside, 18:00:00 is not. A day with
+    # no window of its own is not a calling day at all.
+    inside_window = today is not None and today[0] <= local.time() < today[1]
 
-    if day_permitted and inside_window:
+    if inside_window:
         return CheckOutcome(code=code, result="pass", detail=detail)
 
     reason = (
         f"{local_day} is not a permitted calling day"
-        if not day_permitted
+        if today is None
         else f"local time {local:%H:%M} is outside {window['start']}-{window['end']}"
     )
     return CheckOutcome(
@@ -309,9 +309,10 @@ def _next_window_open(local: datetime, profile, tz: ZoneInfo) -> datetime | None
     """The next instant this check would pass, so the UI can say when."""
     for offset in range(_DAY_LOOKAHEAD):
         day = local.date() + timedelta(days=offset)
-        if _WEEKDAYS[day.weekday()] not in profile.days:
+        window = profile.window_for(_WEEKDAYS[day.weekday()])
+        if window is None:
             continue
-        opens = datetime.combine(day, profile.window_start, tzinfo=tz)
+        opens = datetime.combine(day, window[0], tzinfo=tz)
         if opens > local:
             return opens.astimezone(UTC)
     return None
