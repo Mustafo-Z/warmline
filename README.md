@@ -54,7 +54,7 @@ so a change to either shows up as a diff.
 
 I directed Claude Code and checked what came back. The spec was written and
 agreed first, with every open question put to me, and the policy engine tests
-were committed failing before the engine existed. There are 274 tests, and CI
+were committed failing before the engine existed. There are 275 tests, and CI
 runs them on every push without any API keys.
 
 Things that were wrong and got caught:
