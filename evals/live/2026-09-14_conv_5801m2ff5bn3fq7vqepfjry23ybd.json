@@ -1,0 +1,37 @@
+{
+  "conversation_id": "conv_5801m2ff5bn3fq7vqepfjry23ybd",
+  "source": "live",
+  "agent_id": "agent_3801m2f8sm46fkwt8b59vkw3cxqq",
+  "recorded_at": "2026-09-14T08:06:00.610386Z",
+  "note": "The project author, playing the prospect, asked what kind of news counts and then said there was none. Committed exactly as ElevenLabs stored it.",
+  "turns": [
+    {
+      "role": "agent",
+      "text": "Hi, I'm an AI assistant calling on behalf of Meridian Communications. I'll keep this under a minute. Is now an okay time?"
+    },
+    {
+      "role": "prospect",
+      "text": "Yeah, it's fine."
+    },
+    {
+      "role": "agent",
+      "text": "Great. We work with companies on press coverage, and I'm calling to ask whether you have any news coming up that might be worth pitching to journalists?"
+    },
+    {
+      "role": "prospect",
+      "text": "Hmm. What kind of news are we talking?"
+    },
+    {
+      "role": "agent",
+      "text": "Anything that might be interesting to the media - new products, services, partnerships, milestones, that sort of thing. Do you have anything like that in the pipeline?"
+    },
+    {
+      "role": "prospect",
+      "text": "Not really."
+    },
+    {
+      "role": "agent",
+      "text": "No problem. Well, if that changes and you do have something coming up, feel free to get in touch. Thanks for your time, and goodbye."
+    }
+  ]
+}
