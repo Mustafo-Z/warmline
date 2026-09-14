@@ -20,10 +20,10 @@
     "note": "No provider is configured in this build. The wired provider is SimulatedProvider and no code path reaches a phone network. This block records the configuration an ElevenLabs agent would be created with, so the seam is reviewable."
   },
   "voice": {
-    "name": "Archer",
-    "voice_id": "L0Dsvb3SLTyegXwtm47J",
+    "name": "",
+    "voice_id": "UgBBYS2sOqTuMpoF3BR0",
     "tts_model": "eleven_v3_conversational",
     "speed": 1.0,
-    "chosen_because": "The original stock voice sounded synthetic in the first live calls. A grounded British voice suits a London consultancy calling UK SMEs, and v3 Conversational is the most expressive speech model ElevenLabs offers for agents."
+    "chosen_because": "Picked by ear from the ElevenLabs Voice Library by the project author, after the original stock voice sounded synthetic in the first live calls. The first choice, Archer, was not available on the account."
   }
 }

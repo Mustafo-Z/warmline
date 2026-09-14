@@ -212,8 +212,8 @@ call itself after saying goodbye — observed by the person on the call, not
 confirmed from a log. Six of its sentences were still unverified.
 
 After that call the agent's original stock voice was replaced, because it
-sounded synthetic; it now uses a British voice on ElevenLabs' most expressive
-agent speech model, set in `agent/agent_config.json`. The more human the voice,
+sounded synthetic; it now uses a voice picked by ear from ElevenLabs' library,
+on their most expressive agent speech model, set in `agent/agent_config.json`. The more human the voice,
 the more the disclosure in its first sentence matters — which is why that
 sentence is pinned rather than left to the model, and checked on every call.
 

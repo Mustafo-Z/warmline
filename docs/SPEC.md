@@ -1288,3 +1288,9 @@ that how the agent sounds is reviewed the same way as what it says. The second
 live conversation also confirmed, by the person on the call, that the agent ends
 the call itself once the end-call tool is enabled.
 
+*Revised:* Archer turned out not to be available on the account — ElevenLabs
+rejected the update with `voice_not_found`, because Voice Library voices must be
+added to an account before an agent can use them. The voice is now one the human
+directing the project picked by ear from the library. The speech model is
+unchanged.
+
