@@ -226,6 +226,15 @@ def test_no_accepted_form_of_any_claim_matches_a_prohibited_pattern(claims):
     assert conflicts == []
 
 
+def test_the_system_prompt_caps_a_turn_at_two_short_sentences():
+    """Measured live turns waited longest on long answers, and one ran the call
+    past the minute the opening promises."""
+    prompt = prompt_text()
+
+    assert "one or two short sentences" in prompt
+    assert "never answer with a list or a paragraph" in prompt
+
+
 def test_the_system_prompt_covers_market_sensitive_news():
     prompt = prompt_text()
 
