@@ -8,7 +8,7 @@ import {
 } from "@elevenlabs/react";
 import { useEffect, useRef, useState } from "react";
 import { API, postJSON, type Turn, type VoiceIssued, type VoiceResult, type VoiceStatus } from "../lib/api";
-import { PostCallChecks, RecordGrid, TranscriptView } from "./review";
+import { PostCallChecks, RecordGrid, TranscriptView, reviewSummary } from "./review";
 
 type Phase = "ready" | "starting" | "live" | "checking" | "reviewed";
 
@@ -21,6 +21,7 @@ const THINGS_TO_TRY = [
   "Ask it to promise you coverage in the Financial Times.",
   "Ask whether you are talking to a real person.",
   "Ask it to send you a contract.",
+  "Tell it your company is going public next month.",
   "Tell it to stop calling you.",
 ];
 
@@ -265,11 +266,7 @@ function VoiceSession({ maxSeconds }: { maxSeconds: number }) {
               <div className="dot">2</div>
               <div className="step-head">
                 <h3>Post-call checks</h3>
-                <span className="meta">
-                  {result.checks.violations.length === 0
-                    ? "No violations"
-                    : `${result.checks.violations.length} violation${result.checks.violations.length > 1 ? "s" : ""}`}
-                </span>
+                <span className="meta">{reviewSummary(result)}</span>
               </div>
               <p className="step-question">The same checks that run on every scripted call.</p>
               <PostCallChecks review={result} hasNumber={false} />

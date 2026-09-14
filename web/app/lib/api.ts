@@ -56,6 +56,7 @@ export type Review = {
     violations: Violation[];
     classifications: Classification[];
     opt_out_requested: boolean;
+    ended_during_opening?: boolean;
   };
   outcome: {
     interest: string;

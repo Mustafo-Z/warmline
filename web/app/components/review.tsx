@@ -66,6 +66,11 @@ export function PostCallChecks({ review, hasNumber }: { review: Review; hasNumbe
   const claims = checks.violations.filter((v) => v.code === "UNPERMITTED_CLAIM");
   const commitments = checks.violations.filter((v) => v.code === "OUT_OF_SCOPE_COMMITMENT");
   const optOuts = checks.violations.filter((v) => v.code === "OPT_OUT_NOT_HONOURED");
+  // Sentences Tier 1 could not place against the allowlist. Not violations, and
+  // not passes either: the first live call had twelve of them and the page
+  // showed a green tick, which overstated what had actually been checked.
+  const unverified = checks.classifications.filter((c) => c.verdict === "unclassified");
+  const sensitive = checks.violations.filter((v) => v.code === "SENSITIVE_NEWS");
   const explain = (quote: string) => checks.classifications.find((c) => c.sentence === quote)?.explanation ?? "";
 
   const optOutText = !checks.opt_out_requested
@@ -78,10 +83,17 @@ export function PostCallChecks({ review, hasNumber }: { review: Review; hasNumbe
     <>
       <div className="results">
         <div className="result">
-          <span className={`icon ${checks.disclosure_ok ? "ok" : "bad"}`}>{checks.disclosure_ok ? "✓" : "✕"}</span>
+          <span className={`icon ${checks.ended_during_opening ? "neutral" : checks.disclosure_ok ? "ok" : "bad"}`}>
+            {checks.ended_during_opening ? "–" : checks.disclosure_ok ? "✓" : "✕"}
+          </span>
           <div>
             <div className="title">Disclosed that it is an AI, in its first turn</div>
-            {!checks.disclosure_ok && (
+            {checks.ended_during_opening && (
+              <div className="sub">
+                The call ended during the agent&apos;s opening line, before anyone replied. Recorded, not scored.
+              </div>
+            )}
+            {!checks.disclosure_ok && !checks.ended_during_opening && (
               <div className="sub">
                 {checks.violations.find((v) => v.code.startsWith("DISCLOSURE"))?.code} — the prospect was not told they
                 were talking to an AI.
@@ -91,7 +103,9 @@ export function PostCallChecks({ review, hasNumber }: { review: Review; hasNumbe
         </div>
 
         <div className="result">
-          <span className={`icon ${claims.length ? "bad" : "ok"}`}>{claims.length ? "✕" : "✓"}</span>
+          <span className={`icon ${claims.length ? "bad" : unverified.length ? "warn" : "ok"}`}>
+            {claims.length ? "✕" : unverified.length ? "?" : "✓"}
+          </span>
           <div>
             <div className="title">Every claim is on the approved list</div>
             {claims.map((v, i) => (
@@ -102,6 +116,20 @@ export function PostCallChecks({ review, hasNumber }: { review: Review; hasNumbe
                 </span>
               </div>
             ))}
+            {claims.length === 0 && unverified.length > 0 && (
+              <>
+                <div className="sub">
+                  Nothing broke a rule, but {unverified.length} of {checks.classifications.length} sentences could not
+                  be matched to the approved list. They are reported rather than passed; the keyed Tier 2 adjudicator
+                  is what would judge them.
+                </div>
+                {unverified.map((c, i) => (
+                  <div className="quote warn" key={i}>
+                    “{c.sentence}”
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         </div>
 
@@ -130,6 +158,23 @@ export function PostCallChecks({ review, hasNumber }: { review: Review; hasNumbe
             {optOuts.map((v, i) => (
               <div className="quote" key={i}>
                 “{v.quote}”<span className="why">Said after the prospect asked not to be called.</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="result">
+          <span className={`icon ${sensitive.length ? "bad" : "ok"}`}>{sensitive.length ? "✕" : "✓"}</span>
+          <div>
+            <div className="title">Did not drum up publicity for market-sensitive news</div>
+            {sensitive.length > 0 && (
+              <div className="sub">
+                The prospect raised a listing, unannounced results or a pending deal, and the agent encouraged coverage
+                instead of handing it to a consultant.
+              </div>
+            )}
+            {sensitive.map((v, i) => (
+              <div className="quote" key={i}>
+                “{v.quote}”<span className="why">{v.rule_id} · said after the prospect raised market-sensitive news.</span>
               </div>
             ))}
           </div>
@@ -211,4 +256,12 @@ export function RecordGrid({
       {children}
     </>
   );
+}
+
+/** "No violations", or a count — and never a clean pass while sentences went unverified. */
+export function reviewSummary(review: Review): string {
+  const violations = review.checks.violations.length;
+  const unverified = review.checks.classifications.filter((c) => c.verdict === "unclassified").length;
+  const head = violations === 0 ? "No violations" : `${violations} violation${violations > 1 ? "s" : ""}`;
+  return unverified ? `${head} · ${unverified} unverified` : head;
 }

@@ -491,3 +491,5 @@ input:focus { outline: 2px solid var(--accent-soft); outline-offset: 1px; border
   .voice { grid-template-columns: 1fr; }
   .voice-controls { border-right: 0; border-bottom: 1px solid var(--line); border-radius: var(--radius) var(--radius) 0 0; }
 }
+
+.quote.warn { border-left-color: var(--warn); color: var(--ink-2); }

@@ -17,8 +17,8 @@ import {
   type VoiceStatus,
 } from "./lib/api";
 
-// The four post-call checks, as the policy engine defines them (SPEC 4.5).
-const POST_CALL_CHECKS = 4;
+// The five post-call checks, as the policy engine defines them (SPEC 4.5).
+const POST_CALL_CHECKS = 5;
 
 export default function Page() {
   const [prospects, setProspects] = useState<Prospect[]>([]);
@@ -91,7 +91,7 @@ export default function Page() {
           <p className="lead">
             An AI agent that says the wrong thing to a real person is a regulatory problem, not a bug report.
             Warmline is the layer that decides whether a call may be placed at all, then verifies what the agent
-            said — disclosure, approved claims, commitments, opt-outs — and writes the result back as data.
+            said — disclosure, approved claims, commitments, opt-outs, market-sensitive news — and writes the result back as data.
           </p>
           <div className="notice">
             <span>

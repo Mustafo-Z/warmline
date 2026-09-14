@@ -13,7 +13,7 @@ import {
   type ScenarioDetail,
   type ScenarioSummary,
 } from "../lib/api";
-import { PostCallChecks, RecordGrid, TranscriptView } from "./review";
+import { PostCallChecks, RecordGrid, TranscriptView, reviewSummary } from "./review";
 
 type Phase = "idle" | "gate" | "blocked" | "calling" | "done";
 
@@ -268,11 +268,7 @@ export const CallWalkthrough = forwardRef<HTMLDivElement, Props>(function CallWa
                 <div className="dot">3</div>
                 <div className="step-head">
                   <h3>Post-call checks</h3>
-                  <span className="meta">
-                    {violations.length === 0
-                      ? "No violations"
-                      : `${violations.length} violation${violations.length > 1 ? "s" : ""}`}
-                  </span>
+                  <span className="meta">{reviewSummary(detail)}</span>
                 </div>
                 <p className="step-question">Did it say anything it should not have?</p>
                 <PostCallChecks review={detail} hasNumber />
