@@ -54,7 +54,7 @@ so a change to either shows up as a diff.
 
 I directed Claude Code and checked what came back. The spec was written and
 agreed first, with every open question put to me, and the policy engine tests
-were committed failing before the engine existed. There are 271 tests, and CI
+were committed failing before the engine existed. There are 274 tests, and CI
 runs them on every push without any API keys.
 
 Things that were wrong and got caught:
@@ -108,14 +108,15 @@ each time.
    longest answers were the slowest, and they pushed the call to 95 seconds,
    when the opening line promises under a minute. I switched the model from
    Claude Sonnet 4.5 to Haiku 4.5 and limited replies to two short sentences.
-   That hasn't been re-measured yet.
+   In the next conversation the longest reply was 27 words, down from 52. Its
+   timing, and which model answered it, haven't been checked yet.
 
 ## What isn't proven
 
 - No real phone call has been placed. The ElevenLabs phone provider is written
   but not wired up, so it has never run against a real network.
 - The scripted failures only cover failures someone thought of. The live calls
-  help, but four conversations with one person isn't much evidence.
+  help, but five conversations with one person isn't much evidence.
 - The voicemail rule, to say nothing to an answering machine, is only in the
   prompt. Nothing checks it.
 - The deterministic claim checker can't catch an invented claim that's
