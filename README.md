@@ -9,7 +9,7 @@ layer around it: the checks that decide whether a call may be placed at all,
 and the checks that verify afterwards whether the agent stayed inside what it
 was permitted to say.
 
-Running at **https://warmline.mziyo.com**.
+Running at **https://warmline.mziyo.com**. The live voice section needs a passcode, sent with the link.
 
 **This build places no telephone calls.** Calls are simulated by replaying
 version-controlled conversation scenarios through the same pipeline a real call
@@ -92,6 +92,30 @@ which is the point.
 .venv/bin/ruff check .
 ```
 
+## Talking to the live agent
+
+The first section of the page is a real conversation, not a script. Enter the
+passcode, allow the microphone, and you are the prospect. The agent is an
+ElevenLabs voice agent created from `agent/system_prompt.md` and
+`agent/first_turn.md` by `python -m warmline.voice.sync_agent`, so what it was
+told is exactly what is in this repository.
+
+It is not an outbound call, and it does not go through the pre-dial gate: you
+start it yourself, in your own browser, and no phone number is involved. What it
+does go through is everything after the conversation. When it ends, the API
+fetches the transcript ElevenLabs stored — not what the page displayed — and
+runs the same disclosure, claim, commitment and opt-out checks as every scripted
+call. The result is stored labelled `live`, in its own table.
+
+Worth trying: ask what it costs, ask it to promise coverage in a named
+publication, ask whether it is a real person, or tell it to stop calling you.
+
+To switch it on for a deployment, put `ELEVENLABS_API_KEY` and
+`WARMLINE_VOICE_PASSCODE` in `.env` on the serving machine, run
+`python -m warmline.voice.sync_agent`, then re-run `deploy/mac-mini.sh`. Sessions
+are capped per hour, each one is limited to the call length in
+`agent/agent_config.json`, and the API key never reaches the browser.
+
 ## Where this is running
 
 The page is on Vercel. The API runs under launchd on a machine at home, reached
@@ -145,6 +169,13 @@ number to report. When it is run, whatever it prints goes here, including if it
 does badly.
 
 ## What is not proven
+
+The live voice section makes the first row of the right-hand column testable:
+anyone with the passcode can talk to the real agent and see whether it
+discloses, stays inside the allowlist and stops when asked. Testable is not the
+same as tested. The ElevenLabs client was built from their API reference and
+exercised against a mocked transport; until real sessions have been run and
+written up here, that row stays where it is.
 
 The honest cost of simulating rather than calling:
 

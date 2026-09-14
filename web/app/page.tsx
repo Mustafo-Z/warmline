@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CallWalkthrough } from "./components/CallWalkthrough";
 import { ClaimSandbox } from "./components/ClaimSandbox";
 import { ProspectTable } from "./components/ProspectTable";
+import { VoiceAgent } from "./components/VoiceAgent";
 import {
   API,
   REPO,
@@ -13,6 +14,7 @@ import {
   type Health,
   type Prospect,
   type ScenarioSummary,
+  type VoiceStatus,
 } from "./lib/api";
 
 // The four post-call checks, as the policy engine defines them (SPEC 4.5).
@@ -23,6 +25,7 @@ export default function Page() {
   const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);
   const [live, setLive] = useState<Record<string, Decision>>({});
   const [health, setHealth] = useState<Health | null>(null);
+  const [voice, setVoice] = useState<VoiceStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState("psp_0001");
   const walkthrough = useRef<HTMLDivElement>(null);
@@ -52,6 +55,9 @@ export default function Page() {
     getJSON<Health>("/healthz")
       .then(setHealth)
       .catch(() => undefined);
+    getJSON<VoiceStatus>("/voice/status")
+      .then(setVoice)
+      .catch(() => setVoice({ enabled: false, max_duration_seconds: 0, reason: "unreachable" }));
   }, [load]);
 
   function walkThrough(id: string) {
@@ -89,8 +95,9 @@ export default function Page() {
           </p>
           <div className="notice">
             <span>
-              <b>Nothing here dials.</b> Every prospect is fictional and every conversation is scripted. The
-              policy checks, the claim checker and the database are the real code.
+              <b>Nothing here dials a phone.</b> The first section is a real conversation you start in your
+              own browser. Everything else is scripted, and every prospect is fictional. The policy checks, the
+              claim checker and the database are the real code throughout.
             </span>
           </div>
 
@@ -120,6 +127,21 @@ export default function Page() {
           <div className="section-head">
             <span className="num">01</span>
             <div>
+              <h2>Talk to the agent</h2>
+              <p>
+                A real voice agent, not a script. You play the prospect. When the conversation ends, the transcript
+                ElevenLabs stored is run through the same post-call checks as every other call on this page — so
+                if you can talk it into inventing a price or ignoring an opt-out, you will see it caught.
+              </p>
+            </div>
+          </div>
+          <VoiceAgent status={voice} />
+        </section>
+
+        <section className="block">
+          <div className="section-head">
+            <span className="num">02</span>
+            <div>
               <h2>Walk a call through the policy layer</h2>
               <p>
                 Three questions, in order: should we call this person, did the agent say anything it should not
@@ -141,7 +163,7 @@ export default function Page() {
 
         <section className="block">
           <div className="section-head">
-            <span className="num">02</span>
+            <span className="num">03</span>
             <div>
               <h2>Try to get a claim past the checker</h2>
               <p>
@@ -156,7 +178,7 @@ export default function Page() {
 
         <section className="block">
           <div className="section-head">
-            <span className="num">03</span>
+            <span className="num">04</span>
             <div>
               <h2>Prospects</h2>
               <p>

@@ -47,8 +47,10 @@ export type Turn = { index: number; role: "agent" | "prospect"; text: string };
 
 export type ScenarioSummary = { id: string; label: string; description: string };
 
-export type ScenarioDetail = ScenarioSummary & {
-  transcript: { turns: Turn[] };
+// What the checkers make of one conversation. Scripted and live conversations
+// come back in this same shape, and the page renders both with the same parts.
+export type Review = {
+  transcript: { turns: Turn[]; source?: string };
   checks: {
     disclosure_ok: boolean;
     violations: Violation[];
@@ -64,6 +66,18 @@ export type ScenarioDetail = ScenarioSummary & {
     opt_out_requested: boolean;
   };
 };
+
+export type ScenarioDetail = ScenarioSummary & Review;
+
+export type VoiceStatus = { enabled: boolean; max_duration_seconds: number; reason: string | null };
+
+export type VoiceIssued = {
+  conversation_token: string;
+  conversation_id: string;
+  max_duration_seconds: number;
+};
+
+export type VoiceResult = Review & { conversation_id: string; processed_at: string };
 
 export type StoredOutcome = {
   interest: string;

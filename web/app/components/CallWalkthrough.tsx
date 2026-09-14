@@ -1,11 +1,9 @@
 "use client";
 
-import { forwardRef, useEffect, useState, type ReactNode } from "react";
+import { forwardRef, useEffect, useState } from "react";
 import {
   CHECK_LABELS,
   REASON_SHORT,
-  VERDICT_LABEL,
-  VERDICT_TONE,
   formatInZone,
   getJSON,
   postJSON,
@@ -14,35 +12,12 @@ import {
   type Prospect,
   type ScenarioDetail,
   type ScenarioSummary,
-  type Violation,
 } from "../lib/api";
+import { PostCallChecks, RecordGrid, TranscriptView } from "./review";
 
 type Phase = "idle" | "gate" | "blocked" | "calling" | "done";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// Violations about something the agent *said*, which can be pointed at inside
-// the transcript. Disclosure violations are about something it did not say.
-const QUOTABLE = new Set(["UNPERMITTED_CLAIM", "OUT_OF_SCOPE_COMMITMENT", "OPT_OUT_NOT_HONOURED"]);
-
-function highlight(text: string, flags: Violation[]): ReactNode {
-  if (flags.length === 0) return text;
-  const parts: ReactNode[] = [];
-  let rest = text;
-  flags.forEach((flag, i) => {
-    const at = rest.indexOf(flag.quote);
-    if (at < 0) return;
-    parts.push(rest.slice(0, at));
-    parts.push(
-      <mark key={i} title={`${flag.code}${flag.rule_id ? ` · ${flag.rule_id}` : ""}`}>
-        {flag.quote}
-      </mark>,
-    );
-    rest = rest.slice(at + flag.quote.length);
-  });
-  parts.push(rest);
-  return parts;
-}
 
 /** The instant every blocking check would pass, if they are all waiting on time. */
 function nextPermittedTime(decision: Decision): string | null {
@@ -128,10 +103,10 @@ export const CallWalkthrough = forwardRef<HTMLDivElement, Props>(function CallWa
 
   async function saveToRecord() {
     if (!prospect || !scenario) return;
-    const { status, body } = await postJSON<{
-      attempt_id: string;
-      policy?: Decision;
-    }>(`/prospects/${prospect.id}/calls`, { scenario: scenario.id });
+    const { status, body } = await postJSON<{ attempt_id: string; policy?: Decision }>(
+      `/prospects/${prospect.id}/calls`,
+      { scenario: scenario.id },
+    );
 
     if (status === 202) {
       setSaved(`Saved as ${body.attempt_id}. The prospect table below now shows this call.`);
@@ -156,12 +131,6 @@ export const CallWalkthrough = forwardRef<HTMLDivElement, Props>(function CallWa
   const gateStep = phase === "idle" ? "" : phase === "gate" ? "active" : phase === "blocked" ? "stopped" : "done";
   const callStep = phase === "calling" ? "active" : phase === "done" ? "done" : "";
   const laterStep = phase === "done" ? "done" : "";
-
-  const claimViolations = violations.filter((v) => v.code === "UNPERMITTED_CLAIM");
-  const commitmentViolations = violations.filter((v) => v.code === "OUT_OF_SCOPE_COMMITMENT");
-  const optOutViolations = violations.filter((v) => v.code === "OPT_OUT_NOT_HONOURED");
-  const explanationFor = (quote: string) =>
-    detail?.checks.classifications.find((c) => c.sentence === quote)?.explanation ?? "";
 
   return (
     <div className="card walk" ref={ref}>
@@ -217,7 +186,6 @@ export const CallWalkthrough = forwardRef<HTMLDivElement, Props>(function CallWa
           </div>
         ) : (
           <div className="steps">
-            {/* 1. Pre-dial gate */}
             <div className={`step ${gateStep}`}>
               <div className="dot">1</div>
               <div className="step-head">
@@ -262,9 +230,7 @@ export const CallWalkthrough = forwardRef<HTMLDivElement, Props>(function CallWa
                       </button>
                     </div>
                   ) : (
-                    <div style={{ marginTop: 6 }}>
-                      Waiting will not fix this one. It needs someone to change the record.
-                    </div>
+                    <div style={{ marginTop: 6 }}>Waiting will not fix this one. It needs someone to change the record.</div>
                   )}
                 </div>
               )}
@@ -279,7 +245,6 @@ export const CallWalkthrough = forwardRef<HTMLDivElement, Props>(function CallWa
               )}
             </div>
 
-            {/* 2. The call */}
             {(phase === "calling" || phase === "done") && (
               <div className={`step ${callStep}`}>
                 <div className="dot">2</div>
@@ -288,143 +253,32 @@ export const CallWalkthrough = forwardRef<HTMLDivElement, Props>(function CallWa
                   <span className="meta">Scripted · {scenario?.label}</span>
                 </div>
                 <p className="step-question">What did the agent actually say?</p>
-                <div className="chat">
-                  {turns.slice(0, turnsShown).map((turn) => {
-                    const flags =
-                      phase === "done"
-                        ? violations.filter((v) => v.turn_index === turn.index && QUOTABLE.has(v.code))
-                        : [];
-                    return (
-                      <div key={turn.index} className={`bubble-row ${turn.role}`}>
-                        <div className="bubble">
-                          <span className="who">
-                            {turn.role === "agent" ? "AI agent · Meridian Communications" : prospect?.full_name}
-                          </span>
-                          {highlight(turn.text, flags)}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {phase === "calling" && turnsShown < turns.length && (
-                    <div className="typing">
-                      <span>●</span> <span>●</span> <span>●</span>
-                    </div>
-                  )}
-                </div>
+                <TranscriptView
+                  turns={turns.slice(0, turnsShown)}
+                  violations={phase === "done" ? violations : []}
+                  agentLabel="AI agent · Meridian Communications"
+                  prospectLabel={prospect?.full_name ?? "Prospect"}
+                  pending={phase === "calling" && turnsShown < turns.length}
+                />
               </div>
             )}
 
-            {/* 3. Post-call checks */}
             {phase === "done" && detail && (
               <div className={`step ${laterStep}`}>
                 <div className="dot">3</div>
                 <div className="step-head">
                   <h3>Post-call checks</h3>
                   <span className="meta">
-                    {violations.length === 0 ? "No violations" : `${violations.length} violation${violations.length > 1 ? "s" : ""}`}
+                    {violations.length === 0
+                      ? "No violations"
+                      : `${violations.length} violation${violations.length > 1 ? "s" : ""}`}
                   </span>
                 </div>
                 <p className="step-question">Did it say anything it should not have?</p>
-
-                <div className="results">
-                  <div className="result">
-                    <span className={`icon ${detail.checks.disclosure_ok ? "ok" : "bad"}`}>
-                      {detail.checks.disclosure_ok ? "✓" : "✕"}
-                    </span>
-                    <div>
-                      <div className="title">Disclosed that it is an AI, in its first turn</div>
-                      {!detail.checks.disclosure_ok && (
-                        <div className="sub">
-                          {violations.find((v) => v.code.startsWith("DISCLOSURE"))?.code} — the prospect was never
-                          told they were talking to an AI.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="result">
-                    <span className={`icon ${claimViolations.length ? "bad" : "ok"}`}>{claimViolations.length ? "✕" : "✓"}</span>
-                    <div>
-                      <div className="title">Every claim is on the approved list</div>
-                      {claimViolations.map((v, i) => (
-                        <div className="quote" key={i}>
-                          “{v.quote}”
-                          <span className="why">
-                            {v.rule_id} · {explanationFor(v.quote)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="result">
-                    <span className={`icon ${commitmentViolations.length ? "bad" : "ok"}`}>
-                      {commitmentViolations.length ? "✕" : "✓"}
-                    </span>
-                    <div>
-                      <div className="title">Made no commitment it had no authority to make</div>
-                      {commitmentViolations.map((v, i) => (
-                        <div className="quote" key={i}>
-                          “{v.quote}”
-                          <span className="why">
-                            {v.rule_id} · {explanationFor(v.quote)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="result">
-                    <span
-                      className={`icon ${
-                        !detail.checks.opt_out_requested ? "neutral" : optOutViolations.length ? "bad" : "ok"
-                      }`}
-                    >
-                      {!detail.checks.opt_out_requested ? "–" : optOutViolations.length ? "✕" : "✓"}
-                    </span>
-                    <div>
-                      <div className="title">Honoured an opt-out</div>
-                      <div className="sub">
-                        {!detail.checks.opt_out_requested
-                          ? "The prospect did not ask to stop."
-                          : optOutViolations.length
-                            ? "The prospect asked to stop and the agent kept pitching. The number is suppressed anyway."
-                            : "The prospect asked to stop, the agent stopped, and the number is suppressed."}
-                      </div>
-                      {optOutViolations.map((v, i) => (
-                        <div className="quote" key={i}>
-                          “{v.quote}”<span className="why">Said after the prospect asked not to be called.</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <details className="sentences">
-                  <summary>How each of the agent&apos;s {detail.checks.classifications.length} sentences was classified</summary>
-                  <div className="sentence-list">
-                    {detail.checks.classifications.map((c, i) => (
-                      <div className="verdict-row" key={i}>
-                        <div>
-                          <span className={`pill ${VERDICT_TONE[c.verdict] ?? "neutral"}`}>
-                            {VERDICT_LABEL[c.verdict] ?? c.verdict}
-                          </span>
-                        </div>
-                        <div>
-                          <div className="s">“{c.sentence}”</div>
-                          <div className="e">
-                            {c.rule_id && <span className="r">{c.rule_id} · </span>}
-                            {c.explanation}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </details>
+                <PostCallChecks review={detail} hasNumber />
               </div>
             )}
 
-            {/* 4. The record */}
             {phase === "done" && detail && prospect && (
               <div className={`step ${laterStep}`}>
                 <div className="dot">4</div>
@@ -433,51 +287,16 @@ export const CallWalkthrough = forwardRef<HTMLDivElement, Props>(function CallWa
                   <span className="meta">Structured, not a summary</span>
                 </div>
                 <p className="step-question">What happened, as data?</p>
-                <dl className="record">
-                  <div>
-                    <dt>interest</dt>
-                    <dd>{detail.outcome.interest.replace("_", " ")}</dd>
+                <RecordGrid review={detail} source="scenario">
+                  <div className="record-actions">
+                    <button className="btn small" onClick={saveToRecord}>
+                      Save this call to {prospect.full_name.split(" ")[0]}&apos;s record
+                    </button>
+                    <span className="note">
+                      {saved ?? "Runs the real gate at the real time, so it can refuse. One call per number per 24 hours."}
+                    </span>
                   </div>
-                  <div>
-                    <dt>meeting_requested</dt>
-                    <dd>
-                      {String(detail.outcome.meeting_requested)}
-                      {detail.outcome.meeting_preferences ? ` · ${detail.outcome.meeting_preferences}` : ""}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>has_news</dt>
-                    <dd>{detail.outcome.has_news === null ? "unknown" : String(detail.outcome.has_news)}</dd>
-                  </div>
-                  <div>
-                    <dt>opt_out_requested</dt>
-                    <dd>{String(detail.outcome.opt_out_requested)}</dd>
-                  </div>
-                  <div>
-                    <dt>disclosure_ok</dt>
-                    <dd>{String(detail.checks.disclosure_ok)}</dd>
-                  </div>
-                  <div>
-                    <dt>violations</dt>
-                    <dd>{violations.length === 0 ? "none" : violations.map((v) => v.rule_id ?? v.code).join(", ")}</dd>
-                  </div>
-                  <div>
-                    <dt>news_summary</dt>
-                    <dd>{detail.outcome.news_summary ?? "—"}</dd>
-                  </div>
-                  <div>
-                    <dt>transcript_source</dt>
-                    <dd>scenario</dd>
-                  </div>
-                </dl>
-                <div className="record-actions">
-                  <button className="btn small" onClick={saveToRecord}>
-                    Save this call to {prospect.full_name.split(" ")[0]}&apos;s record
-                  </button>
-                  <span className="note">
-                    {saved ?? "Runs the real gate at the real time, so it can refuse. One call per number per 24 hours."}
-                  </span>
-                </div>
+                </RecordGrid>
               </div>
             )}
           </div>

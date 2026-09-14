@@ -834,6 +834,35 @@ signature over the raw body before parsing; an unverified request is rejected
 `401` and nothing is written; a replayed `conversation_id` is acknowledged `200`
 and ignored, so a provider retry cannot produce two outcomes.
 
+### 6.5 Live browser voice sessions
+
+Added after the rest of the build, so that a reviewer can talk to the real
+agent. Not an outbound call: the person talking starts it in their own browser
+after entering a passcode, so the pre-dial gate (§4.2) does not apply. The
+post-call checks (§4.5) do, unchanged.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/voice/status` | whether live voice is configured on this deployment |
+| `POST` | `/voice/session` | check the passcode, cap sessions per hour, return a single-use WebRTC token |
+| `POST` | `/voice/sessions/{conversation_id}/complete` | fetch the stored transcript from ElevenLabs and check it; `202` while it is still processing |
+| `GET` | `/voice/sessions` | recently checked sessions |
+
+Three rules:
+
+- **The ElevenLabs key never reaches the browser.** The browser receives a
+  token that opens one conversation.
+- **Only conversations this service started can be checked, and the completion
+  endpoint takes no body.** The transcript checked is the one ElevenLabs stored,
+  fetched server-side — never text the browser sends.
+- **Results are stored in `voice_session`, not `call_attempt`**, labelled
+  `source: live`, so a browser session cannot be read as a call that skipped
+  the gate.
+
+The agent itself is created from `agent/` by `python -m warmline.voice.sync_agent`,
+with ElevenLabs authentication enabled so that it cannot be started with its id
+alone.
+
 ---
 
 ## 7. Explicitly out of scope
@@ -1169,3 +1198,22 @@ deliberately-broken run survives as the `missing_disclosure` scenario — as a
 script rather than a phone call, which is a weaker form of the same evidence.
 This is recorded rather than quietly rewritten, because a decision log that only
 contains decisions that survived is not a log.
+
+### Taken when adding live voice
+
+**The demo gets a real voice agent, in the browser, behind a passcode.**
+
+*Question:* can the page have an actual audio demo instead of scripts?
+
+*Answer:* yes — a browser voice session with a real ElevenLabs agent running
+this repository's prompt and pinned opening, started by the visitor after
+entering a passcode, with the stored transcript checked by the same post-call
+code once it ends.
+
+*Reasoning:* scripted scenarios test the checker against what I imagined an
+agent might get wrong, and the README said so. A real agent is the only way to
+close that, and a browser session does it without reversing the decision not to
+dial: nobody is called, the visitor starts it, and no phone number is involved.
+A passcode rather than an open page keeps strangers from spending the account's
+minutes. Both the approach and the passcode were decided by the human directing
+the project.
