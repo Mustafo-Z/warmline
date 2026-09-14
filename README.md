@@ -1,323 +1,149 @@
 # Warmline
 
-An outbound AI voice agent that calls a prospect on behalf of a PR consultancy,
-discloses that it is an AI, asks whether they have news worth pitching, and
-writes the result back as structured data.
+A small demo of the safety layer around an AI voice agent that calls prospects
+for a PR consultancy. Before a call, it checks whether the call is allowed.
+After a call, it checks the transcript for anything the agent shouldn't have
+said.
 
-The voice agent is not the subject of this project. The subject is the policy
-layer around it: the checks that decide whether a call may be placed at all,
-and the checks that verify afterwards whether the agent stayed inside what it
-was permitted to say.
-
-**This build places no telephone calls.** Outbound calls are simulated by
-replaying version-controlled conversation scenarios through the same pipeline a
-real call would take, and no call was placed in the making of this project. The
-reasoning is in [docs/SPEC.md](docs/SPEC.md) section 2. The one real
-conversation on the page is the live voice section, which you start yourself in
-your own browser with no phone number involved. The transcripts from my own test
-conversations with it are kept in [evals/live/](evals/live/).
+Nothing here dials a phone. Outbound calls are simulated with scripted
+conversations that go through the same code a real call would. The only real
+conversations are the ones you start yourself on the page, in your browser.
 
 ## For reviewers
 
-- **Try it** at https://warmline.mziyo.com. The first section is a live voice
-  agent; the passcode comes with the link. The API runs on a machine at home,
-  so it can be briefly unavailable.
-- **The spec came first.** [docs/SPEC.md](docs/SPEC.md) is the first commit.
-  Section 11 is the decision log: each question put to me, my answer and why.
-- **Tests came before the code.**
-  [`739d371`](https://github.com/Mustafo-Z/warmline/commit/739d371) adds the
-  policy-engine tests with 59 of 66 failing, and
+- **Live demo:** https://warmline.mziyo.com. The first section is the live voice
+  agent; the passcode comes with the link. The API runs on a Mac mini at home,
+  so it can occasionally be down.
+- **Spec:** [docs/SPEC.md](docs/SPEC.md) was the first commit. Section 11 is the
+  decision log: each question I was asked, what I chose and why.
+- **Tests first:** [`739d371`](https://github.com/Mustafo-Z/warmline/commit/739d371)
+  adds the policy engine tests with 59 of 66 failing, and
   [`29704cc`](https://github.com/Mustafo-Z/warmline/commit/29704cc) makes them
   pass.
-- **What the AI got wrong, and how it was caught**, is in
-  [How this was built](#how-this-was-built). What talking to the real agent
-  found that no test had is in
-  [What the live conversations showed](#what-the-live-conversations-showed).
-- **Time.** About two hours of my own time, between 9 and 14 September. Claude
-  wrote the code and drafted the docs and commit messages; I made the
-  decisions, tried the running system and talked to the agent.
+- **Mistakes caught:** see [How it was built](#how-it-was-built) and
+  [What the live conversations found](#what-the-live-conversations-found).
+- **Time:** about two hours of my own time, between 9 and 14 September. Claude
+  wrote the code and drafted the docs and commit messages. I made the decisions,
+  tested the running system and talked to the agent.
 
-## The problem
+## What it checks
 
-A PR consultancy earns fees by placing client stories with journalists. Before
-that can happen, someone has to find out whether a company has anything worth
-pitching right now. Most of that discovery is a short phone call that ends in
-"not at the moment", and it consumes the time of the person whose judgement is
-the scarce resource.
+Before a call, nine checks run and the call is blocked unless all of them pass:
+the number is on a verified list, consent exists and hasn't expired or been
+withdrawn, the number isn't suppressed, the timezone matches the number's
+country, it's inside local calling hours, the attempt limits aren't used up, and
+no other call to that prospect is running. Every block comes with a reason and,
+where possible, the time it would pass. The engine is a pure function with no
+database, clock or file access, so the edge cases can be tested exactly.
 
-Automating that first call is not hard. Automating it in a way a listed company
-can operate is the whole problem. An agent that says the wrong thing to a real
-person is a regulatory and reputational event, not a bug report, and the blast
-radius scales with throughput in a way a human caller's does not.
+During a call, the agent's first line is fixed in
+[agent/first_turn.md](agent/first_turn.md) and says it's an AI. That's only an
+instruction to a language model, so it gets checked afterwards.
 
-## The policy layer
+After a call, five checks run on the transcript: the AI disclosure, claims that
+aren't on the approved list, commitments the agent isn't allowed to make, an
+opt-out the agent ignored, and the agent encouraging coverage of
+market-sensitive news such as an upcoming stock listing. Each violation quotes
+the sentence and names the rule.
 
-**Pre-dial.** A call is placed only if nine checks pass: the number is on a
-verified allowlist, consent exists and has not expired or been withdrawn, the
-number is not suppressed, the declared timezone matches the number's country,
-the local time at the destination is inside permitted calling hours, the
-per-number attempt limits are not exhausted, and no call is already in flight.
-Blocked is the default. Every failure produces a structured reason with an
-explanation and, where it applies, the instant at which it would pass.
+What the agent may say is in [policy/permitted_claims.yaml](policy/permitted_claims.yaml),
+and the calling rules are in [policy/calling_windows.yaml](policy/calling_windows.yaml),
+so a change to either shows up as a diff.
 
-The engine is a pure function. It reads no database, no clock and no file:
-everything is passed in. That is what makes it possible to test the boundary
-cases exactly rather than approximately.
+## How it was built
 
-**In-call.** The agent's opening utterance is pinned in
-[agent/first_turn.md](agent/first_turn.md) and discloses the AI. This is a soft
-control and the spec says so: a language model can deviate from a prompt, and a
-pinned opening does not constrain turn two.
+I directed Claude Code and checked what came back. The spec was written and
+agreed first, with every open question put to me, and the policy engine tests
+were committed failing before the engine existed. There are 271 tests, and CI
+runs them on every push without any API keys.
 
-**Post-call.** The transcript is checked for the disclosure, for claims outside
-an allowlist, for commitments the agent has no authority to make, for an
-opt-out the agent failed to honour, and for the agent encouraging coverage of
-market-sensitive news. Every violation carries the quoted sentence and the rule
-that fired, so a reviewer can check the checker.
+Things that were wrong and got caught:
 
-What the agent may say lives in [policy/permitted_claims.yaml](policy/permitted_claims.yaml)
-and the calling rules in [policy/calling_windows.yaml](policy/calling_windows.yaml),
-in version control rather than in code or a vendor dashboard, so that changing
-what the system is allowed to do arrives as a diff someone can review.
+- The claim checker rejected the agent's own opening line. Its rule was "no
+  proper nouns", when it should have been "no proper nouns that aren't in the
+  approved claim", and the approved claim contains "AI".
+- The commitment check ran before the approved-claims check, so it flagged
+  "I'll send a calendar invite" as promising to send a document.
+- The UAE calling rules used the pre-2022 working week, so every prospect was
+  blocked on a Friday. Calling hours are now set per day, with a Friday half day.
+- One SQLite connection shared across FastAPI's threads returned broken rows
+  when requests overlapped. It now sits behind a lock, and the regression test
+  was checked to fail without it.
+- The prospect table hid a completed call as soon as a later attempt was
+  blocked.
+- After the first live call, the page showed a green tick while 11 of the
+  agent's 19 sentences hadn't been matched to the approved list at all. They now
+  show as unverified.
 
-## How this was built
+## What the live conversations found
 
-The implementation was AI-directed. I wrote the brief, made the decisions and
-verified the output; Claude wrote the code, and drafted this README, the spec
-and the commit messages. Since that is what the role is about, here is how it
-actually went.
+The transcripts are in [evals/live/](evals/live/), exactly as ElevenLabs stored
+them, and the test suite runs the same checks on them. I played the prospect
+each time.
 
-**The spec came first and nothing else was written until it was settled.**
-`docs/SPEC.md` was the entire first commit — the reason codes, the decision
-shape, the data model and the API, before any implementation existed to shape
-them around. Every open question in it was put to me explicitly rather than
-guessed at, and section 11 is a decision log recording what was asked, what I
-chose and why, including one decision that superseded an earlier one.
+1. **First call.** I said my company was going public in two weeks, and the
+   agent said that was worth pitching. Nothing checked for that, and for a
+   listed company it's the wrong thing to say. I added the `SENSITIVE_NEWS`
+   check and a prompt rule to hand that kind of news to a consultant. The same
+   call showed the agent couldn't hang up, because agents created through the
+   ElevenLabs API don't get the end-call tool by default. It also showed the
+   outcome extractor missing both the agreed meeting and the news. All of it is
+   fixed, with this transcript as the regression test.
+2. **Accidental call.** It ended at "Hi," and was scored as a missing
+   disclosure. A call that ends during the opening line with no reply is now
+   recorded but not scored.
+3. **Second call.** I said the same thing. This time the agent passed it to a
+   consultant, the check stayed quiet, the extractor got the meeting and the
+   news right, and the agent hung up by itself. After this call I swapped the
+   voice for a less synthetic one.
+4. **Two calls about pricing.** The agent explained pay-on-results without
+   promising coverage, and no check fired. Its wording didn't match the
+   approved claim closely enough, though, so those sentences show as
+   unverified. The extractor also read "No, thanks. I'm good." as unclear
+   instead of a no.
+5. **Slow replies.** The second pricing call felt slow, so I measured it with
+   `python -m warmline.voice.timing` before changing anything. The agent took a
+   median of 2.5 seconds to start talking, and 3.45 seconds at worst. Of that
+   worst gap, 3.03 seconds was the language model and 0.17 was the voice. The
+   longest answers were the slowest, and they pushed the call to 95 seconds,
+   when the opening line promises under a minute. I switched the model from
+   Claude Sonnet 4.5 to Haiku 4.5 and limited replies to two short sentences.
+   That hasn't been re-measured yet.
 
-**Tests came before the implementation, visibly.** Commit `739d371` adds 66
-policy-engine tests against a stub and is deliberately red; `29704cc` makes it
-green. The history is not squashed, so the order of work is legible.
+## What isn't proven
 
-**The spec was corrected when the code proved it wrong.** Writing the engine
-showed that `CALL_IN_FLIGHT` is recoverable but has no computable retry time,
-and that the config sample was missing a map the timezone check needed. Both
-were fixed in the spec in the same commit as the code.
-
-**Directing well meant catching things that looked fine.** The claim checker's
-first version rejected the agent's own opening line, because the rule "no
-proper nouns" should have been "no proper nouns absent from the canonical
-claim" — the canonical contains "AI". The commitment check originally ran
-before allowlist matching and flagged "I'll send a calendar invite" as agreeing
-to send a document. A non-claim pattern anchored to a prefix rather than the
-whole sentence would have dismissed the entire disclosure as a greeting. None
-of these would have failed a test that had been written to match the code.
-
-**The most useful correction came from looking at the running system.** Every
-prospect was blocking on a Friday, which was correct according to the config
-and wrong according to the calendar: the `AE` profile encoded the pre-2022 UAE
-working week, which changed to Monday–Friday in January 2022. Fixing it meant
-changing the shape of the config, because a half-day Friday cannot be expressed
-as one window plus a list of days. Calling windows are now per day. A
-compliance layer carrying a four-year-old compliance rule is the specific kind
-of wrong this project exists to avoid.
-
-**Running it found what the tests did not.** Two bugs appeared within a minute
-of opening the page, both committed with regression tests in `8de7bae`. One
-SQLite connection shared across FastAPI's threadpool returned rows with empty
-columns under concurrent requests. And the prospect view showed the outcome of
-the latest *attempt*, so a completed call disappeared from the table as soon as
-the attempt limit started blocking. I confirmed the concurrency test fails
-without its fix rather than assuming a passing concurrency test proves
-anything.
-
-## How it is verified
-
-Two tiers, kept apart, because "our evals pass" means nothing if nobody can
-tell which ones needed a credit card.
-
-**Deterministic — 271 tests, no API key, no network, runs in CI on every push.**
-
-- The policy engine, tested before it was written. Every consent state, both
-  sides of every calling-window boundary including the UAE's Friday half day,
-  the same UTC instant allowed in one timezone and blocked in another, DST
-  either side of a transition, attempt limits at and around the boundary,
-  malformed input, and a combinatorial check that the engine never allows when
-  any check blocks.
-- The whole scenario library through the real checkers, asserting each scenario
-  raises the violations it should **and no others**.
-- The agent's own opening line, run through its own disclosure and claim
-  checks. It cannot drift out of compliance with the allowlist without the
-  build going red.
-- API contract tests, including one where the provider double raises if it is
-  invoked at all, so a bypassed policy gate fails loudly.
-- Every live transcript in `evals/live/`, through the same checks, with what
-  they make of it pinned, so a rule change shows its effect on real speech and
-  not only on scripts.
-
-**Keyed — run by hand, never in CI.** The Tier 2 LLM adjudicator over the
-sentences the deterministic tier cannot classify, scored against twenty
-sentences I labelled myself. See [evals/README.md](evals/README.md).
-
-**This has not been run.** There is no API key in this project, so there is no
-number to report. When it is run, whatever it prints goes here, including if it
-does badly.
-
-## What the live conversations showed
-
-The first real conversation with the agent is committed in `evals/live/`, exactly
-as ElevenLabs stored it, and runs through the checks in the test suite alongside
-the scripts. It was more useful than any scenario, because it found things
-nobody had written a scenario for.
-
-- **The disclosure held.** The pinned opening went out first, as designed.
-- **No claim or commitment rule fired, but that was not a pass.** Tier 1 could not
-  place 11 of the agent's 19 sentences against the allowlist, and the page showed
-  it as a clean result. It now shows those sentences as unverified. Two were the
-  agent booking the follow-up in its own words, which is its job, so they became
-  accepted forms of the booking claim. Nine remain unverified, mostly pleasantries.
-- **The extractor got the outcome wrong.** The prospect agreed to a follow-up and
-  said the company was going public; the record said interest unclear, no
-  meeting, no news. The offer had been phrased as a question, and "going public"
-  was not a news keyword. Both are fixed, with this transcript as the regression
-  test — which failed before the fix and passes after.
-- **The agent pitched an imminent listing.** Told the company was going public in
-  two weeks, it called that worth pitching and offered to discuss how to approach
-  the coverage. Nothing checked for that, and for a listed company or anyone
-  advising one it is exactly the wrong instinct. There is now a `SENSITIVE_NEWS`
-  check and a prompt rule to hand such news to a consultant. This transcript is
-  what the check was built from, and it fires twice on it.
-- **The agent could not hang up.** Agents created through the ElevenLabs API do not
-  get the end-call tool unless it is added explicitly, so the conversation could
-  only be ended from the browser. It now has the tool, with the rules for when to
-  use it in `agent/agent_config.json`.
-
-A second session was started by accident and ended while the agent was still
-saying "Hi,". It was first scored as a missing disclosure. A call that ends inside
-the opening line before anyone replies is now recorded but not scored; an agent
-that speaks without disclosing is still a violation. That transcript is kept too.
-
-The second conversation was held after those changes were deployed, and
-repeated the situation that produced the new rule: the prospect said the company
-was going public. This time the agent said a consultant would need to discuss it
-directly and offered the call, without mentioning coverage, and the
-sensitive-news check stayed quiet. The extractor recorded the meeting and the
-news correctly on a call its fixes were not written against. The agent ended the
-call itself after saying goodbye — observed by the person on the call, not
-confirmed from a log. Six of its sentences were still unverified.
-
-After that call the agent's original stock voice was replaced, because it
-sounded synthetic; it now uses a voice picked by ear from ElevenLabs' library,
-on their most expressive agent speech model, set in `agent/agent_config.json`.
-The more human the voice, the more the disclosure in its first sentence matters
-— which is why that sentence is pinned rather than left to the model, and
-checked on every call.
-
-Two more conversations asked about pricing. Both times the agent explained
-pay-on-results and stopped there, without turning it into a promise of
-coverage, and no check fired. They also showed two limits. The agent's
-explanations added words to the permitted claim, so Tier 1 could not match them
-and reports them as unverified rather than verified. And the keyword extractor
-recorded "No, thanks. I'm good." and "Uh, not really." as interest unclear,
-where a person would read both as no.
-
-The second of those calls felt slow, so before changing anything I measured it
-with `python -m warmline.voice.timing`, which reads ElevenLabs' per-turn
-metrics. Across its five replies the agent took a median 2.5 seconds to start
-speaking after I stopped, and 3.45 seconds at worst. Of that worst gap, 3.03
-seconds was the language model writing its first sentence; the speech model
-took 0.17 and waiting for the end of my turn 0.22. The new voice and speech
-model started within 0.05 seconds of the old ones, so they stayed. The slowest
-answers were also the longest, and they took the call to 95 seconds against an
-opening line that promises under a minute. The agent now runs on Claude Haiku
-4.5 instead of Sonnet 4.5, with a prompt rule of one or two short sentences a
-turn. Whether that helped has not been measured yet.
-
-## What is not proven
-
-The live voice section makes the first row of the right-hand column testable:
-anyone with the passcode can talk to the real agent and see whether it
-discloses, stays inside the allowlist and stops when asked. Four real
-conversations have been run, plus one started by accident, and all are written
-up above. Four conversations with the same person are not evidence that the
-agent keeps to its rules in general, so that row stays where it is.
-
-The honest cost of simulating rather than calling:
-
-| Proven | Not proven |
-|---|---|
-| The policy engine blocks and allows correctly, including at boundaries | That a real voice agent obeys the pinned first turn |
-| A blocked call never reaches a provider | That the ElevenLabs and Twilio integration works against a live network |
-| The post-call checks catch missing disclosure, invented claims, out-of-scope commitments and ignored opt-outs | That they catch what a *real* agent invents, rather than what I scripted it to invent |
-| Outcome extraction and write-back | Audio, latency, interruption, accent, line quality |
-
-The right-hand column is the price of the decision. The scripted failures were
-written by me, which means they test the checker against my imagination.
-
-Two further gaps, named rather than papered over. The voicemail rule — say
-nothing to an answering machine — is instructed in the prompt and is not
-verified anywhere, because answering-machine detection is out of scope and a
-detector that half worked would be worse than an acknowledged gap. And Tier 1
-of the claim checker cannot catch a fluent, novel, paraphrased invented claim
-that avoids every pattern; what it can do is report how much it failed to
-classify, which a golden file pins so that widening the blind spot turns the
-build red.
+- No real phone call has been placed. The ElevenLabs phone provider is written
+  but not wired up, so it has never run against a real network.
+- The scripted failures only cover failures someone thought of. The live calls
+  help, but four conversations with one person isn't much evidence.
+- The voicemail rule, to say nothing to an answering machine, is only in the
+  prompt. Nothing checks it.
+- The deterministic claim checker can't catch an invented claim that's
+  paraphrased well enough to avoid every pattern. It does report what it
+  couldn't classify, and a test fails if that list grows.
+- The LLM claim checker in [evals/](evals/) needs an API key and has never been
+  run, so there are no results for it.
 
 ## What I would do next
 
-Deliberately not built, so the scope stayed finished rather than broad:
+- Recognise pleasantries like "Have a great day!", which make up most of the
+  unverified sentences.
+- Replace the keyword outcome extractor with an LLM. It's the weakest part.
+- Place real calls to a number I own, and keep every transcript, including the
+  bad ones.
+- Add a scheduler that acts on the retry time. Calls are started by hand for
+  now.
+- Screen against real do-not-call registers, not just the suppression list.
+- Check what the agent says during the call, not only afterwards.
+- Move to a real database with a connection per request.
+- Add a retention policy for transcripts.
 
-- **A closing and pleasantries pattern for Tier 1**, so that "Have a great day!"
-  stops counting as unverified. Most of what the first live call left
-  unverified was this.
-- **An LLM outcome extractor.** The current one is keyword matching and is
-  labelled as such in the database. It is the weakest component here: it missed
-  an agreed meeting on the first live call, and recorded "No, thanks. I'm good."
-  as interest unclear on a later one.
-- **Live calls to a verified number**, with the transcripts committed exactly
-  as they came back — including the bad ones — to replace the right-hand column
-  of the table above with evidence.
-- **A retry and scheduling engine.** Calls are triggered one at a time by hand;
-  `retry_after` is computed and shown but nothing acts on it.
-- **Real DNC register screening**, which the suppression list stands in for.
-- **A real-time guard on the model output stream**, so disclosure is enforced
-  during the call rather than only verified after it.
-- **Per-request connections against a real database.** The single-lock fix is
-  right for one user and wrong for many.
-- **A retention policy.** Transcripts are kept indefinitely here because they
-  are either scripted or my own test conversations; that would not survive
-  contact with a real prospect's data.
-
-## Talking to the live agent
-
-The first section of the page is a real conversation, not a script. Enter the
-passcode, allow the microphone, and you are the prospect. The agent is an
-ElevenLabs voice agent created from `agent/system_prompt.md` and
-`agent/first_turn.md` by `python -m warmline.voice.sync_agent`, so what it was
-told is exactly what is in this repository.
-
-It is not an outbound call, and it does not go through the pre-dial gate: you
-start it yourself, in your own browser, and no phone number is involved. What it
-does go through is everything after the conversation. When it ends, the API
-fetches the transcript ElevenLabs stored — not what the page displayed — and
-runs the same disclosure, claim, commitment and opt-out checks as every scripted
-call. The result is stored labelled `live`, in its own table.
-
-Worth trying: ask what it costs, ask it to promise coverage in a named
-publication, ask whether it is a real person, or tell it to stop calling you.
-
-To switch it on for a deployment, put `ELEVENLABS_API_KEY` and
-`WARMLINE_VOICE_PASSCODE` in `.env` on the serving machine, run
-`python -m warmline.voice.sync_agent`, then re-run `deploy/mac-mini.sh`. Sessions
-are capped per hour, each one is limited to the call length in
-`agent/agent_config.json`, and the API key never reaches the browser.
-
-## Running it
+## Running it locally
 
 Python 3.11+ and Node 20+.
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -e '.[dev]'
-.venv/bin/python -m warmline.storage.seed
 .venv/bin/uvicorn warmline.api.main:app --port 8000
 ```
 
@@ -325,84 +151,45 @@ python -m venv .venv && .venv/bin/pip install -e '.[dev]'
 cd web && npm install && npm run dev
 ```
 
-Then open the page the dev server prints. Copy `.env.example` to `.env` if you
-want to exercise the webhook; nothing else needs configuration.
-
-**If every row shows "Outside permitted calling hours", the system is working.**
-The seed data is in `Asia/Dubai`. Calling hours are 09:00–18:00 Monday to
-Thursday and 09:00–12:00 on Friday, with no calling at the weekend — the UAE
-working week since 2022, including its half day. Outside those hours the gate
-blocks simulated calls exactly as it would block real ones, which is
-deliberate: a simulated call is not a way around the policy layer.
-
-To see a completed call outside office hours, widen the window in
-`policy/calling_windows.yaml`. That is a policy change and shows up as a diff,
-which is the point.
-
 ```bash
-.venv/bin/python -m pytest        # 271 tests, no keys, no network
-.venv/bin/ruff check .
+.venv/bin/python -m pytest
 ```
 
-## Where this is running
+The seed prospects are in Dubai, where calling hours are 09:00 to 18:00 Monday
+to Thursday and 09:00 to 12:00 on Friday. Outside those hours every row shows
+"Outside permitted calling hours", because simulated calls go through the same
+gate. Each number also gets one call per 24 hours, so a second simulated call to
+the same prospect is refused.
 
-The page is on Vercel. The API runs under launchd on a machine at home, reached
-through a Cloudflare tunnel at `warmline-api.mziyo.com` — no port forwarding,
-no public IP, and the service binds to localhost so the tunnel is the only way
-in. `deploy/mac-mini.sh` sets that up and `deploy/README.md` explains it.
-
-Self-hosted, so it can be briefly unavailable if that machine restarts. Running
-it locally takes about a minute and needs nothing but Python and Node.
-
-What you will see depends on when you look, which is the point:
-
-- **Inside UAE calling hours**, the first prospect is callable and the rest each
-  block for a different reason — expired consent, withdrawn consent, a
-  suppressed number, no consent record, a number that is not on the verified
-  allowlist.
-- **Outside them**, every row blocks on calling hours as well. A simulated call
-  goes through the same gate a real one would; being simulated is not a way
-  around the policy layer.
-- The attempt limit is one call per number per 24 hours, so a second simulated
-  call to the same prospect is refused. That is the limit working, not the
-  demo breaking.
+The live voice agent needs an ElevenLabs key. Setting it up, and how the hosted
+version runs, is in [deploy/README.md](deploy/README.md).
 
 ## Repository map
 
 ```
-docs/SPEC.md         the specification, and the decision log
-policy/*.yaml        calling windows, verified numbers, claim allowlist, disclosure rule
-agent/               system prompt, the pinned opening line, agent config
-scenarios/*.json     the scenario library, used by both the tests and the UI
-src/warmline/policy  the pre-dial engine: pure functions, no I/O
-src/warmline/postcall  transcript normalisation, disclosure and claim checks, extraction
-src/warmline/providers  the CallProvider seam; SimulatedProvider is the only one wired
-src/warmline/api     FastAPI
-src/warmline/voice   live browser sessions: ElevenLabs client, agent sync, timing diagnostic
-tests/               deterministic, no keys
-evals/               keyed, manual
-evals/live/          real conversations with the agent, as ElevenLabs stored them
-deploy/              the self-hosted API: launchd and a Cloudflare tunnel
-web/                 one Next.js page
+docs/SPEC.md            spec and decision log
+policy/*.yaml           calling windows, verified numbers, approved claims, disclosure rule
+agent/                  system prompt, fixed opening line, agent config
+scenarios/*.json        scripted conversations, used by the tests and the page
+src/warmline/policy     pre-dial engine
+src/warmline/postcall   transcript checks and outcome extraction
+src/warmline/providers  call provider interface; only the simulated one is wired up
+src/warmline/api        FastAPI
+src/warmline/voice      live browser sessions: ElevenLabs client, agent sync, timing
+tests/                  deterministic tests, no keys needed
+evals/                  LLM claim checker eval, run by hand
+evals/live/             real conversations with the agent
+deploy/                 Mac mini deployment
+web/                    Next.js page
 ```
 
 ## Regulatory note
 
-I am not a lawyer and this is not legal advice. It is here because a system
-like this cannot be designed without knowing which rules it sits beside.
+I'm not a lawyer. These are the rules the design was based on. In the US, the
+FCC treats AI-generated voices in unsolicited calls as artificial voices under
+the TCPA. The UAE restricts marketing calls to permitted hours and days and
+requires registration. In the UK, PECR requires TPS and CTPS screening.
 
-The FCC has ruled that AI-generated voices in unsolicited calls fall within the
-TCPA's restrictions on artificial and prerecorded voices, which brings consent,
-identification and calling-hour obligations. The UAE restricts unsolicited
-marketing calls, with permitted hours and days, company registration and
-register checks. The UK's PECR regime carries TPS and CTPS screening
-obligations. Recording consent varies by jurisdiction; this project stores no
-audio, which removes that surface entirely.
-
-What this models: consent as a record with a lawful basis, suppression,
-calling-hours enforcement by destination local time, attempt limits, mandatory
-disclosure, and after-the-fact verification. What it does not implement:
-national do-not-call register screening, regulator registration, per-
-jurisdiction legal review, or data-subject rights workflows.
-
-It is a demonstration, and it should not be pointed at a real prospect list.
+This project models consent, suppression, calling hours, attempt limits and
+disclosure. It doesn't screen do-not-call registers, handle registration or
+replace legal review, and it shouldn't be pointed at a real prospect list.
