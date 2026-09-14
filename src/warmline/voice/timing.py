@@ -38,19 +38,30 @@ def summarise(details: dict) -> list[str]:
         lines.append(f"  the opening line promises under a minute; this call lasted {duration}s")
 
     seen: dict[str, list[float]] = {}
+    previous: dict[str, float] = {}
     for item in details.get("transcript") or []:
         at = item.get("time_in_call_secs")
         role = item.get("role", "?")
         text = (item.get("message") or "").strip().replace("\n", " ")
-        preview = text[:56] + ("…" if len(text) > 56 else "")
+        preview = text[:56] + ("…" if len(text) > 56 else "") if text else "(no speech)"
         turn_metrics = item.get("conversation_turn_metrics") or {}
         metrics = turn_metrics.get("metrics") or {}
+        current: dict[str, float] = {}
         parts = []
         for name, value in sorted(metrics.items()):
             elapsed = value.get("elapsed_time") if isinstance(value, dict) else None
-            if isinstance(elapsed, (int, float)):
-                seen.setdefault(name, []).append(elapsed)
-                parts.append(f"{name} {elapsed:.2f}s")
+            if not isinstance(elapsed, (int, float)):
+                continue
+            current[name] = elapsed
+            # A turn with no speech, such as the end_call tool call, carries a
+            # copy of the previous turn's metrics. Counting the copy again would
+            # skew the medians, so only what is new on that turn is kept.
+            if not text and previous.get(name) == elapsed:
+                continue
+            seen.setdefault(name, []).append(elapsed)
+            parts.append(f"{name} {elapsed:.2f}s")
+        if current:
+            previous = current
         model = turn_metrics.get("convai_tts_model")
         if model:
             parts.append(f"tts model {model}")

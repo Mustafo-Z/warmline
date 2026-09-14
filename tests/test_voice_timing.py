@@ -35,6 +35,29 @@ def test_each_metric_is_summarised_with_its_median_and_worst_case():
     assert "tts model eleven_v3_conversational" in text
 
 
+def test_metrics_repeated_on_a_tool_call_turn_are_not_counted_twice():
+    details = record(40, {"convai_llm_service_ttfb": {"elapsed_time": 1.25}})
+    details["transcript"].append(
+        {
+            "role": "agent",
+            "message": None,
+            "time_in_call_secs": 9,
+            "conversation_turn_metrics": {
+                "metrics": {
+                    "convai_llm_service_ttfb": {"elapsed_time": 1.25},
+                    "convai_llm_tool_request_generation_latency": {"elapsed_time": 2.45},
+                }
+            },
+        }
+    )
+
+    text = "\n".join(timing.summarise(details))
+
+    assert "convai_llm_service_ttfb: median 1.25s, worst 1.25s, 1 turns" in text
+    assert "convai_llm_tool_request_generation_latency: median 2.45s" in text
+    assert "(no speech)" in text
+
+
 def test_a_call_longer_than_the_promised_minute_is_pointed_out():
     lines = timing.summarise(record(95, None))
 
