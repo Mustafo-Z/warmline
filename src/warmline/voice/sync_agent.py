@@ -21,8 +21,10 @@ from warmline.agent import AgentConfig, load_agent_config
 from warmline.envfile import default_env_path, load_env_file
 from warmline.voice.elevenlabs import ElevenLabsClient, ElevenLabsError
 
-#: Anthropic, as the stack this is written for uses. Override with ELEVENLABS_LLM.
-DEFAULT_LLM = "claude-sonnet-4-5"
+#: Anthropic, as the stack this is written for uses. Haiku rather than Sonnet
+#: because measured live turns spent most of their delay waiting on the language
+#: model (SPEC decision log). Override with ELEVENLABS_LLM.
+DEFAULT_LLM = "claude-haiku-4-5"
 
 
 def build_definition(agent: AgentConfig, *, llm: str, voice_id: str | None = None) -> dict:

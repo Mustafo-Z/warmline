@@ -1294,3 +1294,21 @@ added to an account before an agent can use them. The voice is now one the human
 directing the project picked by ear from the library. The speech model is
 unchanged.
 
+### Taken after measuring a slow conversation
+
+**The agent answers in one or two short sentences, on Claude Haiku 4.5.**
+*Question:* the agent felt slow to respond — what should change? *Answer:* swap
+Claude Sonnet 4.5 for Claude Haiku 4.5, and cap each turn at one or two short
+sentences in the prompt. *Reasoning:* the choice was made from ElevenLabs' own
+per-turn metrics, pulled with `python -m warmline.voice.timing`, not from a
+guess. In the slow conversation the agent took a median 2.5s to start speaking
+after the prospect stopped, 3.45s at worst. Of that worst gap, 3.03s was the
+language model producing its first sentence, 0.22s was waiting to be sure the
+prospect had finished, and 0.17s was the speech model. The v3 Conversational
+speech model started within 0.05s of the Flash model used in the earlier calls,
+so the voice stays. The slowest turns were the longest answers, and they took
+that call to 95 seconds against an opening line that promises under a minute.
+The risk of a smaller model is that it follows the rules less closely. The
+post-call checks exist to show that, and whether the change helped is measured
+on the next conversation rather than assumed.
+
