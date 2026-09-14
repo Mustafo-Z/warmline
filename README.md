@@ -168,7 +168,7 @@ sentences I labelled myself. See [evals/README.md](evals/README.md).
 number to report. When it is run, whatever it prints goes here, including if it
 does badly.
 
-## What the first live conversation showed
+## What the live conversations showed
 
 The first real conversation with the agent is committed in `evals/live/`, exactly
 as ElevenLabs stored it, and runs through the checks in the test suite alongside
@@ -202,14 +202,29 @@ saying "Hi,". It was first scored as a missing disclosure. A call that ends insi
 the opening line before anyone replies is now recorded but not scored; an agent
 that speaks without disclosing is still a violation. That transcript is kept too.
 
+The second conversation was held after those changes were deployed, and
+repeated the situation that produced the new rule: the prospect said the company
+was going public. This time the agent said a consultant would need to discuss it
+directly and offered the call, without mentioning coverage, and the
+sensitive-news check stayed quiet. The extractor recorded the meeting and the
+news correctly on a call its fixes were not written against. The agent ended the
+call itself after saying goodbye — observed by the person on the call, not
+confirmed from a log. Six of its sentences were still unverified.
+
+After that call the agent's original stock voice was replaced, because it
+sounded synthetic; it now uses a British voice on ElevenLabs' most expressive
+agent speech model, set in `agent/agent_config.json`. The more human the voice,
+the more the disclosure in its first sentence matters — which is why that
+sentence is pinned rather than left to the model, and checked on every call.
+
 ## What is not proven
 
 The live voice section makes the first row of the right-hand column testable:
 anyone with the passcode can talk to the real agent and see whether it
-discloses, stays inside the allowlist and stops when asked. One real
-conversation has been run, and it is written up above. One conversation is not
-evidence that the agent keeps to its rules in general, so that row stays where
-it is.
+discloses, stays inside the allowlist and stops when asked. Two real
+conversations have been run, and both are written up above. Two conversations
+with the same person are not evidence that the agent keeps to its rules in
+general, so that row stays where it is.
 
 The honest cost of simulating rather than calling:
 

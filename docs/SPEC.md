@@ -1277,3 +1277,14 @@ modelled on do? *Answer:* yes, as a permitted claim. *Reasoning:* it makes the
 demo closer to the real market, and it is the claim most easily bent into a
 guarantee — which is why a scenario now tests exactly that.
 
+**The agent speaks with a more natural voice, set in the repository.**
+*Question:* the original stock voice sounded synthetic — which voice and speech
+model should the agent use? *Answer:* Archer, a British male voice ElevenLabs
+lists for agents, on the Eleven v3 Conversational speech model. *Reasoning:* a
+grounded British voice suits a London consultancy calling UK SMEs, and v3
+Conversational is the most expressive speech model ElevenLabs offers for agents.
+The voice moved from an environment variable into `agent/agent_config.json`, so
+that how the agent sounds is reviewed the same way as what it says. The second
+live conversation also confirmed, by the person on the call, that the agent ends
+the call itself once the end-call tool is enabled.
+
