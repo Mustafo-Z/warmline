@@ -160,3 +160,14 @@ def test_pay_on_results_was_explained_without_promising_coverage(configs, conver
 
     assert result.disclosure_ok is True
     assert result.violations == ()
+
+
+NEWS_QUESTION_CALL = "conv_5801m2ff5bn3fq7vqepfjry23ybd"
+
+
+def test_asked_what_news_counts_the_agent_stayed_inside_its_claims(configs):
+    """The agent gave examples of news and took no for an answer."""
+    _transcript, result = check(NEWS_QUESTION_CALL, configs)
+
+    assert result.disclosure_ok is True
+    assert result.violations == ()
