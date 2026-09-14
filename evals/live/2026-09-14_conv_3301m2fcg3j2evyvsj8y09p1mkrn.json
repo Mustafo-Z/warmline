@@ -1,0 +1,37 @@
+{
+  "conversation_id": "conv_3301m2fcg3j2evyvsj8y09p1mkrn",
+  "source": "live",
+  "agent_id": "agent_3801m2f8sm46fkwt8b59vkw3cxqq",
+  "recorded_at": "2026-09-14T07:19:31.876313Z",
+  "note": "The second live conversation, after the market-sensitive news rule, the booking forms and the end-call tool were deployed. The project author, playing the prospect, said the company was going public. Committed exactly as ElevenLabs stored it.",
+  "turns": [
+    {
+      "role": "agent",
+      "text": "Hi, I'm an AI assistant calling on behalf of Meridian Communications. I'll keep this under a minute. Is now an okay time?"
+    },
+    {
+      "role": "prospect",
+      "text": "Yeah, that's fine."
+    },
+    {
+      "role": "agent",
+      "text": "Great, thanks. Meridian works with companies on press coverage, and I'm calling to ask whether you have any news coming up in the next few months that might be worth pitching to journalists?"
+    },
+    {
+      "role": "prospect",
+      "text": "Yeah. Um, my company is going public."
+    },
+    {
+      "role": "agent",
+      "text": "I understand. That's something one of the consultants would need to discuss with you directly. If it sounds like it could be relevant, I can book you a short call with one of them to talk it through properly. Would that be useful?"
+    },
+    {
+      "role": "prospect",
+      "text": "Yeah, sure."
+    },
+    {
+      "role": "agent",
+      "text": "Perfect. I'll get that arranged for you. Thanks for your time today, and one of the consultants will be in touch soon to set that up. Have a good day."
+    }
+  ]
+}

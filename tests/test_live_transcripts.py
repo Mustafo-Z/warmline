@@ -26,6 +26,7 @@ GOLDEN = Path(__file__).parent / "golden" / "live_unclassified.json"
 
 FIRST_CALL = "conv_3001m2f91xb1e2y9adt7ykxrh0sj"
 CUT_OFF_CALL = "conv_4901m2f955the5s953s6146aazzc"
+SECOND_CALL = "conv_3301m2fcg3j2evyvsj8y09p1mkrn"
 
 
 def fixtures() -> dict[str, dict]:
@@ -124,3 +125,28 @@ def test_the_accidental_call_is_recorded_as_ended_during_the_opening(configs):
 
     assert result.ended_during_opening is True
     assert result.violations == ()
+
+
+def test_the_second_live_call_handed_the_listing_to_a_consultant(configs):
+    """The same situation that produced the sensitive-news rule, after it was deployed.
+
+    The prospect said the company was going public. This time the agent said a
+    consultant would need to discuss it directly and offered the call, without
+    mentioning coverage. The check stays quiet, and the handover is a verified
+    permitted claim rather than an unclassified sentence.
+    """
+    _transcript, result = check(SECOND_CALL, configs)
+
+    assert result.violations == ()
+    assert "HAND_TO_CONSULTANT" in {c.rule_id for c in result.classifications}
+
+
+def test_the_extractor_fixes_hold_on_a_call_they_were_not_written_against(configs):
+    """Evidence the fixes were not simply fitted to the transcript they came from."""
+    transcript, result = check(SECOND_CALL, configs)
+
+    outcome = extract_outcome(transcript, result)
+
+    assert outcome.interest == "interested"
+    assert outcome.meeting_requested is True
+    assert outcome.has_news is True
