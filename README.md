@@ -219,18 +219,39 @@ confirmed from a log. Six of its sentences were still unverified.
 
 After that call the agent's original stock voice was replaced, because it
 sounded synthetic; it now uses a voice picked by ear from ElevenLabs' library,
-on their most expressive agent speech model, set in `agent/agent_config.json`. The more human the voice,
-the more the disclosure in its first sentence matters — which is why that
-sentence is pinned rather than left to the model, and checked on every call.
+on their most expressive agent speech model, set in `agent/agent_config.json`.
+The more human the voice, the more the disclosure in its first sentence matters
+— which is why that sentence is pinned rather than left to the model, and
+checked on every call.
+
+Two more conversations asked about pricing. Both times the agent explained
+pay-on-results and stopped there, without turning it into a promise of
+coverage, and no check fired. They also showed two limits. The agent's
+explanations added words to the permitted claim, so Tier 1 could not match them
+and reports them as unverified rather than verified. And the keyword extractor
+recorded "No, thanks. I'm good." and "Uh, not really." as interest unclear,
+where a person would read both as no.
+
+The second of those calls felt slow, so before changing anything I measured it
+with `python -m warmline.voice.timing`, which reads ElevenLabs' per-turn
+metrics. Across its five replies the agent took a median 2.5 seconds to start
+speaking after I stopped, and 3.45 seconds at worst. Of that worst gap, 3.03
+seconds was the language model writing its first sentence; the speech model
+took 0.17 and waiting for the end of my turn 0.22. The new voice and speech
+model started within 0.05 seconds of the old ones, so they stayed. The slowest
+answers were also the longest, and they took the call to 95 seconds against an
+opening line that promises under a minute. The agent now runs on Claude Haiku
+4.5 instead of Sonnet 4.5, with a prompt rule of one or two short sentences a
+turn. Whether that helped has not been measured yet.
 
 ## What is not proven
 
 The live voice section makes the first row of the right-hand column testable:
 anyone with the passcode can talk to the real agent and see whether it
-discloses, stays inside the allowlist and stops when asked. Two real
-conversations have been run, and both are written up above. Two conversations
-with the same person are not evidence that the agent keeps to its rules in
-general, so that row stays where it is.
+discloses, stays inside the allowlist and stops when asked. Four real
+conversations have been run, plus one started by accident, and all are written
+up above. Four conversations with the same person are not evidence that the
+agent keeps to its rules in general, so that row stays where it is.
 
 The honest cost of simulating rather than calling:
 
@@ -310,7 +331,9 @@ Deliberately not built, so the scope stayed finished rather than broad:
   stops counting as unverified. Most of what the first live call left
   unverified was this.
 - **An LLM outcome extractor.** The current one is keyword matching and is
-  labelled as such in the database. It is the weakest component here, and the first live call proved it.
+  labelled as such in the database. It is the weakest component here: it missed
+  an agreed meeting on the first live call, and recorded "No, thanks. I'm good."
+  as interest unclear on a later one.
 - **Live calls to a verified number**, with the transcripts committed exactly
   as they came back — including the bad ones — to replace the right-hand column
   of the table above with evidence.
