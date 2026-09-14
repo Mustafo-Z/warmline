@@ -71,6 +71,18 @@ def test_a_language_model_missing_from_the_record_is_not_guessed():
     assert "  language model: not recorded" in timing.summarise(record(40, None))
 
 
+def test_the_pinned_opening_is_shown_but_left_out_of_the_medians():
+    details = record(40, {"convai_ttf_audio_since_silence": {"elapsed_time": 2.0}})
+    details["transcript"][0]["conversation_turn_metrics"] = {
+        "metrics": {"convai_ttf_audio_since_silence": {"elapsed_time": 0.15}}
+    }
+
+    text = "\n".join(timing.summarise(details))
+
+    assert "convai_ttf_audio_since_silence 0.15s" in text
+    assert "convai_ttf_audio_since_silence: median 2.00s, worst 2.00s, 1 turns" in text
+
+
 def test_a_call_longer_than_the_promised_minute_is_pointed_out():
     lines = timing.summarise(record(95, None))
 

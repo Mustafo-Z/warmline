@@ -56,9 +56,11 @@ def summarise(details: dict) -> list[str]:
 
     seen: dict[str, list[float]] = {}
     previous: dict[str, float] = {}
+    answered = False
     for item in details.get("transcript") or []:
         at = item.get("time_in_call_secs")
         role = item.get("role", "?")
+        answered = answered or role == "user"
         text = (item.get("message") or "").strip().replace("\n", " ")
         preview = text[:56] + ("…" if len(text) > 56 else "") if text else "(no speech)"
         turn_metrics = item.get("conversation_turn_metrics") or {}
@@ -75,8 +77,11 @@ def summarise(details: dict) -> list[str]:
             # skew the medians, so only what is new on that turn is kept.
             if not text and previous.get(name) == elapsed:
                 continue
-            seen.setdefault(name, []).append(elapsed)
             parts.append(f"{name} {elapsed:.2f}s")
+            # The pinned opening is spoken before the prospect says anything, and no
+            # model writes it, so it is shown but kept out of the medians.
+            if answered:
+                seen.setdefault(name, []).append(elapsed)
         if current:
             previous = current
         model = turn_metrics.get("convai_tts_model")
