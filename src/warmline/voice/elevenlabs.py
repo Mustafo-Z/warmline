@@ -87,8 +87,12 @@ class ElevenLabsClient:
             raise ElevenLabsError("token response did not include a token and a conversation_id")
         return SessionToken(token=token, conversation_id=conversation_id)
 
+    def get_conversation_details(self, conversation_id: str) -> dict:
+        """The full conversation record, including per-turn timing and call metadata."""
+        return self._send("GET", f"/v1/convai/conversations/{conversation_id}")
+
     def get_conversation(self, conversation_id: str) -> Conversation:
-        body = self._send("GET", f"/v1/convai/conversations/{conversation_id}")
+        body = self.get_conversation_details(conversation_id)
         return Conversation(status=body.get("status", ""), turns=to_turns(body.get("transcript")))
 
     def create_agent(self, definition: dict) -> str:
