@@ -69,7 +69,7 @@ def test_migration_is_idempotent(db):
 def test_migration_records_what_it_applied():
     connection = connect()
 
-    assert migrate(connection) == ["001_initial"]
+    assert migrate(connection) == ["001_initial", "002_voice_session"]
     assert connection.execute("SELECT version FROM schema_migration").fetchone()[0] == "001_initial"
 
 

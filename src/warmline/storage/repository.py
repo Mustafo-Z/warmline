@@ -460,3 +460,77 @@ def latest_outcome(connection: sqlite3.Connection, prospect_id: str) -> dict | N
         (prospect_id,),
     ).fetchone()
     return get_outcome_for_attempt(connection, row["call_attempt_id"]) if row else None
+
+
+# --- browser voice sessions ------------------------------------------------
+
+
+def insert_voice_session(
+    connection: sqlite3.Connection, *, conversation_id: str, agent_id: str, issued_at: datetime
+) -> str:
+    identifier = next_id(connection, "vs")
+    connection.execute(
+        "INSERT INTO voice_session (id, conversation_id, agent_id, status, issued_at)"
+        " VALUES (?, ?, ?, 'issued', ?)",
+        (identifier, conversation_id, agent_id, to_iso(issued_at)),
+    )
+    return identifier
+
+
+def get_voice_session(connection: sqlite3.Connection, conversation_id: str) -> dict | None:
+    row = connection.execute(
+        "SELECT * FROM voice_session WHERE conversation_id = ?", (conversation_id,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def count_voice_sessions_since(connection: sqlite3.Connection, since: datetime) -> int:
+    row = connection.execute(
+        "SELECT COUNT(*) AS n FROM voice_session WHERE issued_at > ?", (to_iso(since),)
+    ).fetchone()
+    return int(row["n"])
+
+
+def mark_voice_processed(
+    connection: sqlite3.Connection,
+    conversation_id: str,
+    *,
+    transcript: dict,
+    disclosure_ok: bool,
+    violations: list[dict],
+    classifications: list[dict],
+    outcome: dict,
+    processed_at: datetime,
+) -> None:
+    connection.execute(
+        "UPDATE voice_session SET status = 'processed', processed_at = ?, transcript_json = ?,"
+        " transcript_source = 'live', disclosure_ok = ?, violations_json = ?,"
+        " classifications_json = ?, outcome_json = ? WHERE conversation_id = ?",
+        (
+            to_iso(processed_at),
+            json.dumps(transcript),
+            1 if disclosure_ok else 0,
+            json.dumps(violations),
+            json.dumps(classifications),
+            json.dumps(outcome),
+            conversation_id,
+        ),
+    )
+
+
+def mark_voice_failed(
+    connection: sqlite3.Connection, conversation_id: str, *, error: str, processed_at: datetime
+) -> None:
+    connection.execute(
+        "UPDATE voice_session SET status = 'failed', error = ?, processed_at = ?"
+        " WHERE conversation_id = ?",
+        (error, to_iso(processed_at), conversation_id),
+    )
+
+
+def list_voice_sessions(connection: sqlite3.Connection, limit: int = 10) -> list[dict]:
+    rows = connection.execute(
+        "SELECT * FROM voice_session WHERE status = 'processed' ORDER BY processed_at DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    return [dict(row) for row in rows]

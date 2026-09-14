@@ -84,6 +84,12 @@ fi
 
 # --- the service -----------------------------------------------------------
 
+say "Preparing the secrets file"
+# Secrets live here rather than in the launchd plist, because files in
+# /Library/LaunchDaemons are readable by every account on the machine.
+touch "$CHECKOUT/.env"
+chmod 600 "$CHECKOUT/.env"
+
 say "Installing dependencies"
 "$PYTHON" -m venv "$CHECKOUT/.venv"
 "$CHECKOUT/.venv/bin/pip" install --quiet --upgrade pip
@@ -270,6 +276,9 @@ cat <<EOF
 Give DNS a minute, then check the public URL.
 
   Update:   bash ${CHECKOUT}/deploy/mac-mini.sh
+  Voice:    add ELEVENLABS_API_KEY and WARMLINE_VOICE_PASSCODE to ${CHECKOUT}/.env, then
+            ${CHECKOUT}/.venv/bin/python -m warmline.voice.sync_agent
+            and run this script again so the API picks them up.
   Logs:     tail -f ${CHECKOUT}/logs/api.err
   Tunnel:   tail -f ${CHECKOUT}/logs/tunnel.err
   Stop:     sudo launchctl bootout system/${LABEL} && sudo launchctl bootout system/${TUNNEL_LABEL}

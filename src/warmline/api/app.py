@@ -15,7 +15,7 @@ import os
 import sqlite3
 import threading
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from warmline.agent import load_agent_config
 from warmline.config import load_claims_config, load_disclosure_config, load_policy_config
 from warmline.policy.engine import evaluate_pre_dial
 from warmline.postcall.checks import check_claims, run_checks
@@ -34,6 +35,8 @@ from warmline.providers.simulated import SimulatedProvider
 from warmline.scenarios import load_scenario
 from warmline.storage import repository
 from warmline.storage.db import connect, migrate
+from warmline.voice.elevenlabs import PENDING_STATUSES, ElevenLabsClient, ElevenLabsError
+from warmline.voice.settings import VoiceSettings
 
 DEFAULT_DB = Path(os.environ.get("WARMLINE_DB", "warmline.sqlite3"))
 
@@ -48,6 +51,10 @@ class PolicyCheckRequest(BaseModel):
 
 class SentenceCheckRequest(BaseModel):
     text: str
+
+
+class VoiceSessionRequest(BaseModel):
+    passcode: str
 
 
 class SuppressionRequest(BaseModel):
@@ -86,6 +93,8 @@ def create_app(
     connection: sqlite3.Connection | None = None,
     provider: Any | None = None,
     clock: Callable[[], datetime] | None = None,
+    voice_settings: VoiceSettings | None = None,
+    voice_client: Any | None = None,
 ) -> FastAPI:
     """Build the application.
 
@@ -115,6 +124,8 @@ def create_app(
     disclosure_config = load_disclosure_config()
     call_provider = provider or get_provider()
     now_fn = clock or _now
+    voice = voice_settings or VoiceSettings.from_env(load_agent_config().max_duration_seconds)
+    voice_api = voice_client or (ElevenLabsClient(voice.api_key) if voice.enabled else None)
 
     # One connection, shared, and therefore serialised. sqlite3 lets several
     # threads use one connection with check_same_thread=False, but it does not
@@ -516,6 +527,174 @@ def create_app(
             now=now_fn(),
         )
         return {"status": "processed", "attempt_id": attempt["id"], "outcome": outcome}
+
+    # --- live voice sessions ---------------------------------------------
+    #
+    # A browser session with the real agent. Not an outbound call: the person
+    # talking starts it, in their own browser, after entering a passcode. So the
+    # pre-dial gate does not apply — there is no number, no consent question and
+    # no calling window — but everything after the conversation does, unchanged.
+    #
+    # These routes take the connection lock only around database work, never
+    # while waiting on ElevenLabs, so a slow vendor call cannot stall the rest
+    # of the API.
+
+    def _voice_result(row: dict) -> dict:
+        outcome = json.loads(row["outcome_json"])
+        return {
+            "conversation_id": row["conversation_id"],
+            "processed_at": row["processed_at"],
+            "transcript": json.loads(row["transcript_json"]),
+            "checks": {
+                "disclosure_ok": bool(row["disclosure_ok"]),
+                "violations": json.loads(row["violations_json"]),
+                "classifications": json.loads(row["classifications_json"]),
+                "opt_out_requested": outcome["opt_out_requested"],
+            },
+            "outcome": outcome,
+        }
+
+    @app.get("/voice/status")
+    def voice_status() -> dict:
+        return {
+            "enabled": voice.enabled,
+            "max_duration_seconds": voice.max_duration_seconds,
+            "reason": None if voice.enabled else f"not configured: {', '.join(voice.missing)}",
+        }
+
+    @app.post("/voice/session")
+    def start_voice_session(body: VoiceSessionRequest):
+        """Check the passcode, then issue a single-use session token.
+
+        The ElevenLabs key never leaves the server; the browser only ever sees a
+        token that opens one conversation.
+        """
+        if not voice.enabled or voice_api is None:
+            raise HTTPException(status_code=503, detail="voice sessions are not configured")
+
+        if not hmac.compare_digest(body.passcode.strip().encode(), voice.passcode.encode()):
+            raise HTTPException(status_code=401, detail="wrong passcode")
+
+        now = now_fn()
+        with connection_lock:
+            recent = repository.count_voice_sessions_since(shared, now - timedelta(hours=1))
+        if recent >= voice.sessions_per_hour:
+            raise HTTPException(
+                status_code=429,
+                detail=f"{voice.sessions_per_hour} sessions an hour at most; try again later",
+            )
+
+        try:
+            issued = voice_api.conversation_token(voice.agent_id)
+        except ElevenLabsError as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
+
+        with connection_lock:
+            repository.insert_voice_session(
+                shared,
+                conversation_id=issued.conversation_id,
+                agent_id=voice.agent_id,
+                issued_at=now,
+            )
+
+        return {
+            "conversation_token": issued.token,
+            "conversation_id": issued.conversation_id,
+            "max_duration_seconds": voice.max_duration_seconds,
+        }
+
+    @app.post("/voice/sessions/{conversation_id}/complete")
+    def complete_voice_session(conversation_id: str):
+        """Fetch the finished transcript from ElevenLabs and check it.
+
+        Takes no body. The transcript that gets checked is the one ElevenLabs
+        stored, fetched here with the key — never text the browser sends — so a
+        visitor cannot submit a tidied-up version of what the agent said.
+        """
+        with connection_lock:
+            row = repository.get_voice_session(shared, conversation_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="not a session this service started")
+        if row["status"] == "processed":
+            return _voice_result(row)
+        if row["status"] == "failed":
+            return JSONResponse(
+                status_code=422, content={"status": "failed", "error": row["error"]}
+            )
+        if voice_api is None:
+            raise HTTPException(status_code=503, detail="voice sessions are not configured")
+
+        try:
+            conversation = voice_api.get_conversation(conversation_id)
+        except ElevenLabsError as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
+
+        if conversation.status in PENDING_STATUSES:
+            return JSONResponse(status_code=202, content={"status": "processing"})
+
+        now = now_fn()
+        if conversation.status != "done" or not conversation.turns:
+            error = (
+                f"conversation ended with status {conversation.status!r}"
+                if conversation.status != "done"
+                else "the conversation ended before anything was said"
+            )
+            with connection_lock:
+                repository.mark_voice_failed(shared, conversation_id, error=error, processed_at=now)
+            return JSONResponse(status_code=422, content={"status": "failed", "error": error})
+
+        transcript = normalise_transcript(
+            {"turns": conversation.turns}, source="live", conversation_id=conversation_id
+        )
+        checks = run_checks(transcript, claims_config, disclosure_config)
+        outcome = extract_outcome(transcript, checks)
+
+        with connection_lock:
+            repository.mark_voice_processed(
+                shared,
+                conversation_id,
+                transcript=transcript.to_dict(),
+                disclosure_ok=checks.disclosure_ok,
+                violations=[v.to_dict() for v in checks.violations],
+                classifications=[
+                    {
+                        "turn_index": c.turn_index,
+                        "sentence": c.sentence,
+                        "verdict": c.verdict,
+                        "rule_id": c.rule_id,
+                        "explanation": _explain(c.verdict, c.rule_id),
+                    }
+                    for c in checks.classifications
+                ],
+                outcome={
+                    "interest": outcome.interest,
+                    "has_news": outcome.has_news,
+                    "news_summary": outcome.news_summary,
+                    "meeting_requested": outcome.meeting_requested,
+                    "meeting_preferences": outcome.meeting_preferences,
+                    "opt_out_requested": outcome.opt_out_requested,
+                },
+                processed_at=now,
+            )
+            row = repository.get_voice_session(shared, conversation_id)
+        return _voice_result(row)
+
+    @app.get("/voice/sessions")
+    def recent_voice_sessions() -> dict:
+        with connection_lock:
+            rows = repository.list_voice_sessions(shared)
+        return {
+            "sessions": [
+                {
+                    "conversation_id": row["conversation_id"],
+                    "processed_at": row["processed_at"],
+                    "disclosure_ok": bool(row["disclosure_ok"]),
+                    "violations": [v["code"] for v in json.loads(row["violations_json"])],
+                    "turns": len(json.loads(row["transcript_json"])["turns"]),
+                }
+                for row in rows
+            ]
+        }
 
     app.state.connection = shared
     return app
