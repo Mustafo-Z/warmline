@@ -28,11 +28,28 @@ from warmline.voice.elevenlabs import ElevenLabsClient, ElevenLabsError
 PROMISED_SECONDS = 60
 
 
+def language_models(metadata: dict) -> list[str]:
+    """The language models ElevenLabs billed the call for.
+
+    The per-turn metrics do not say which model produced a turn, so a before
+    and after comparison of a model change needs this to show which side of the
+    change a call was on.
+    """
+    usage = (metadata.get("charging") or {}).get("llm_usage") or {}
+    names: set[str] = set()
+    for generation in usage.values():
+        if isinstance(generation, dict):
+            names.update((generation.get("model_usage") or {}).keys())
+    return sorted(names)
+
+
 def summarise(details: dict) -> list[str]:
     metadata = details.get("metadata") or {}
     duration = metadata.get("call_duration_secs")
+    models = language_models(metadata)
     lines = [
-        f"  duration {duration}s, ended by: {details.get('termination_reason') or 'not recorded'}"
+        f"  duration {duration}s, ended by: {details.get('termination_reason') or 'not recorded'}",
+        f"  language model: {', '.join(models) if models else 'not recorded'}",
     ]
     if isinstance(duration, (int, float)) and duration > PROMISED_SECONDS:
         lines.append(f"  the opening line promises under a minute; this call lasted {duration}s")

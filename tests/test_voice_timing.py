@@ -58,6 +58,19 @@ def test_metrics_repeated_on_a_tool_call_turn_are_not_counted_twice():
     assert "(no speech)" in text
 
 
+def test_the_language_model_is_named_from_the_billing_record():
+    details = record(40, None)
+    details["metadata"]["charging"] = {
+        "llm_usage": {"irreversible_generation": {"model_usage": {"claude-haiku-4-5": {}}}}
+    }
+
+    assert "  language model: claude-haiku-4-5" in timing.summarise(details)
+
+
+def test_a_language_model_missing_from_the_record_is_not_guessed():
+    assert "  language model: not recorded" in timing.summarise(record(40, None))
+
+
 def test_a_call_longer_than_the_promised_minute_is_pointed_out():
     lines = timing.summarise(record(95, None))
 
