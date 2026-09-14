@@ -101,9 +101,11 @@ what it buys and what it costs.
   up a phone, so the evidence base is *larger* than it would be with a handful
   of live calls.
 - **What it costs.** The provider integration is never exercised against a real
-  network, and no transcript in this repository came from a real conversation. A
-  scripted scenario cannot surprise the checker the way a real person can. §9.2
-  states this plainly rather than leaving a reviewer to work it out.
+  network, and no scripted transcript came from a real call. A scripted scenario
+  cannot surprise the checker the way a real person can. §9.2 states this
+  plainly rather than leaving a reviewer to work it out. The live browser
+  sessions in §6.5, added later, are real conversations with the agent, started
+  by the person talking to it; they are not calls.
 
 The design still carries the controls a dialling version would need, because
 they are the substance of the project:
@@ -1040,9 +1042,10 @@ The same scenario library, driven through the real HTTP API and the real UI
 rather than through the test harness: pick a prospect, click, and watch the
 policy gate, the attempt record, the checks and the outcome write-back happen.
 
-**No real call was placed in the making of this project, and no transcript here
-came from a real conversation.** That was a safety decision, not a shortcut —
-§2.1 gives the reasoning. What it means for the evidence:
+**No real call was placed in the making of this project.** That was a safety
+decision, not a shortcut — §2.1 gives the reasoning. The live browser sessions
+in §6.5, added later, are real conversations kept in `evals/live/`, but they are
+not calls. What simulation means for the evidence:
 
 | Proven by the simulated suite | Not proven |
 |---|---|

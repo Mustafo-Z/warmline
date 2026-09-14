@@ -11,11 +11,13 @@ was permitted to say.
 
 Running at **https://warmline.mziyo.com**. The live voice section needs a passcode, sent with the link.
 
-**This build places no telephone calls.** Calls are simulated by replaying
-version-controlled conversation scenarios through the same pipeline a real call
-would take. No call was placed in the making of this project and no transcript
-here came from a real conversation. The reasoning is in
-[docs/SPEC.md](docs/SPEC.md) section 2.
+**This build places no telephone calls.** Outbound calls are simulated by
+replaying version-controlled conversation scenarios through the same pipeline a
+real call would take, and no call was placed in the making of this project. The
+reasoning is in [docs/SPEC.md](docs/SPEC.md) section 2. The one real
+conversation on the page is the live voice section, which you start yourself in
+your own browser with no phone number involved. The transcripts from my own test
+conversations with it are kept in [evals/live/](evals/live/).
 
 ## The problem
 
@@ -50,9 +52,10 @@ control and the spec says so: a language model can deviate from a prompt, and a
 pinned opening does not constrain turn two.
 
 **Post-call.** The transcript is checked for the disclosure, for claims outside
-an allowlist, for commitments the agent has no authority to make, and for an
-opt-out the agent failed to honour. Every violation carries the quoted sentence
-and the rule that fired, so a reviewer can check the checker.
+an allowlist, for commitments the agent has no authority to make, for an
+opt-out the agent failed to honour, and for the agent encouraging coverage of
+market-sensitive news. Every violation carries the quoted sentence and the rule
+that fired, so a reviewer can check the checker.
 
 What the agent may say lives in [policy/permitted_claims.yaml](policy/permitted_claims.yaml)
 and the calling rules in [policy/calling_windows.yaml](policy/calling_windows.yaml),
@@ -88,7 +91,7 @@ To see a completed call outside office hours, widen the window in
 which is the point.
 
 ```bash
-.venv/bin/python -m pytest        # 182 tests, no keys, no network
+.venv/bin/python -m pytest        # 271 tests, no keys, no network
 .venv/bin/ruff check .
 ```
 
@@ -144,7 +147,7 @@ What you will see depends on when you look, which is the point:
 Two tiers, kept apart, because "our evals pass" means nothing if nobody can
 tell which ones needed a credit card.
 
-**Deterministic — 182 tests, no API key, no network, runs in CI on every push.**
+**Deterministic — 271 tests, no API key, no network, runs in CI on every push.**
 
 - The policy engine, tested before it was written. Every consent state, both
   sides of every calling-window boundary including the UAE's Friday half day,
@@ -159,6 +162,9 @@ tell which ones needed a credit card.
   build going red.
 - API contract tests, including one where the provider double raises if it is
   invoked at all, so a bypassed policy gate fails loudly.
+- Every live transcript in `evals/live/`, through the same checks, with what
+  they make of it pinned, so a rule change shows its effect on real speech and
+  not only on scripts.
 
 **Keyed — run by hand, never in CI.** The Tier 2 LLM adjudicator over the
 sentences the deterministic tier cannot classify, scored against twenty
@@ -316,7 +322,8 @@ Deliberately not built, so the scope stayed finished rather than broad:
 - **Per-request connections against a real database.** The single-lock fix is
   right for one user and wrong for many.
 - **A retention policy.** Transcripts are kept indefinitely here because they
-  are all fictional; that would not survive contact with real data.
+  are either scripted or my own test conversations; that would not survive
+  contact with a real prospect's data.
 
 ## Repository map
 
@@ -329,8 +336,11 @@ src/warmline/policy  the pre-dial engine: pure functions, no I/O
 src/warmline/postcall  transcript normalisation, disclosure and claim checks, extraction
 src/warmline/providers  the CallProvider seam; SimulatedProvider is the only one wired
 src/warmline/api     FastAPI
+src/warmline/voice   live browser sessions: ElevenLabs client, agent sync, timing diagnostic
 tests/               deterministic, no keys
 evals/               keyed, manual
+evals/live/          real conversations with the agent, as ElevenLabs stored them
+deploy/              the self-hosted API: launchd and a Cloudflare tunnel
 web/                 one Next.js page
 ```
 
