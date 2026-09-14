@@ -168,14 +168,48 @@ sentences I labelled myself. See [evals/README.md](evals/README.md).
 number to report. When it is run, whatever it prints goes here, including if it
 does badly.
 
+## What the first live conversation showed
+
+The first real conversation with the agent is committed in `evals/live/`, exactly
+as ElevenLabs stored it, and runs through the checks in the test suite alongside
+the scripts. It was more useful than any scenario, because it found things
+nobody had written a scenario for.
+
+- **The disclosure held.** The pinned opening went out first, as designed.
+- **No claim or commitment rule fired, but that was not a pass.** Tier 1 could not
+  place 11 of the agent's 19 sentences against the allowlist, and the page showed
+  it as a clean result. It now shows those sentences as unverified. Two were the
+  agent booking the follow-up in its own words, which is its job, so they became
+  accepted forms of the booking claim. Nine remain unverified, mostly pleasantries.
+- **The extractor got the outcome wrong.** The prospect agreed to a follow-up and
+  said the company was going public; the record said interest unclear, no
+  meeting, no news. The offer had been phrased as a question, and "going public"
+  was not a news keyword. Both are fixed, with this transcript as the regression
+  test — which failed before the fix and passes after.
+- **The agent pitched an imminent listing.** Told the company was going public in
+  two weeks, it called that worth pitching and offered to discuss how to approach
+  the coverage. Nothing checked for that, and for a listed company or anyone
+  advising one it is exactly the wrong instinct. There is now a `SENSITIVE_NEWS`
+  check and a prompt rule to hand such news to a consultant. This transcript is
+  what the check was built from, and it fires twice on it.
+- **The agent could not hang up.** Agents created through the ElevenLabs API do not
+  get the end-call tool unless it is added explicitly, so the conversation could
+  only be ended from the browser. It now has the tool, with the rules for when to
+  use it in `agent/agent_config.json`.
+
+A second session was started by accident and ended while the agent was still
+saying "Hi,". It was first scored as a missing disclosure. A call that ends inside
+the opening line before anyone replies is now recorded but not scored; an agent
+that speaks without disclosing is still a violation. That transcript is kept too.
+
 ## What is not proven
 
 The live voice section makes the first row of the right-hand column testable:
 anyone with the passcode can talk to the real agent and see whether it
-discloses, stays inside the allowlist and stops when asked. Testable is not the
-same as tested. The ElevenLabs client was built from their API reference and
-exercised against a mocked transport; until real sessions have been run and
-written up here, that row stays where it is.
+discloses, stays inside the allowlist and stops when asked. One real
+conversation has been run, and it is written up above. One conversation is not
+evidence that the agent keeps to its rules in general, so that row stays where
+it is.
 
 The honest cost of simulating rather than calling:
 
@@ -251,8 +285,11 @@ anything.
 
 Deliberately not built, so the scope stayed finished rather than broad:
 
+- **A closing and pleasantries pattern for Tier 1**, so that "Have a great day!"
+  stops counting as unverified. Most of what the first live call left
+  unverified was this.
 - **An LLM outcome extractor.** The current one is keyword matching and is
-  labelled as such in the database. It is the weakest component here.
+  labelled as such in the database. It is the weakest component here, and the first live call proved it.
 - **Live calls to a verified number**, with the transcripts committed exactly
   as they came back — including the bad ones — to replace the right-hand column
   of the table above with evidence.

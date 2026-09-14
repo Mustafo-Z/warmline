@@ -173,6 +173,9 @@ as it was put, the answer, and the reasoning are in the [decision log](#11-decis
 | Voicemail | Agent says nothing and ends the call | §4.4 |
 | Transcript retention | Indefinite in this build; named as a real-deployment gap | §7 |
 | UI | One page, plus a per-row dry-run "why is this blocked?" button | §8 |
+| Live voice | Browser session with the real agent behind a passcode; the stored transcript is checked afterwards | §6.5 |
+| Market-sensitive news | The agent hands it to a consultant; encouraging coverage of it is flagged | §4.5 |
+| Pay-on-results | A permitted claim; guarantees of coverage are still prohibited | §5.1 |
 
 ---
 
@@ -431,6 +434,7 @@ half work.
 | `UNPERMITTED_CLAIM` | an agent sentence asserts something outside the allowlist (§5) | flag on outcome, one per sentence, with quote |
 | `OUT_OF_SCOPE_COMMITMENT` | the agent agreed to something it cannot commit to — pricing, discounts, guaranteed coverage, contractual terms, sending documents, deadlines | flag on outcome, with quote |
 | `OPT_OUT_NOT_HONOURED` | the prospect asked to stop, and the agent continued to pitch or did not acknowledge | flag on outcome **and** write a suppression entry |
+| `SENSITIVE_NEWS` | the prospect raised market-sensitive news — an upcoming listing, unannounced results, a pending deal — and the agent then encouraged coverage of it | flag on outcome, one per sentence, with quote |
 
 Two rules across all of them:
 
@@ -441,6 +445,13 @@ Two rules across all of them:
    detector sees an opt-out request in the prospect's turns, the number is
    suppressed. `OPT_OUT_NOT_HONOURED` is about whether the *agent* behaved; the
    suppression happens either way.
+
+**A call that ends inside the agent's opening line, before anyone replies, is
+recorded but not scored.** If the agent's only turn is a strict prefix of the
+pinned opening and the prospect never spoke, `ended_during_opening` is set and
+the missing disclosure is not a violation: the line that makes the disclosure
+was cut off before anyone could hear it. An agent that speaks without
+disclosing is still a violation, answered or not.
 
 ---
 
@@ -529,6 +540,10 @@ implementing the checker:
   permitted scheduling ("I'll send a calendar invite") is not reported as
   agreeing to send a document.
 - `opt_out_patterns` — how an opt-out is recognised in the prospect's turns.
+- `also_accepted` on a claim — further phrasings that count as that claim, held
+  to the same number, name and superlative guards as the canonical.
+- `sensitive_news_patterns` and `sensitive_engagement_patterns` — what
+  `SENSITIVE_NEWS` looks for, first in the prospect's words, then in the agent's.
 
 ### 5.2 How a violation is detected
 
@@ -1217,3 +1232,48 @@ dial: nobody is called, the visitor starts it, and no phone number is involved.
 A passcode rather than an open page keeps strangers from spending the account's
 minutes. Both the approach and the passcode were decided by the human directing
 the project.
+
+### Taken after the first live conversation
+
+The first real conversation with the agent raised five questions. Each answer
+below was decided by the human directing the project.
+
+**The agent can end the call.**
+*Question:* why can the agent not hang up? *Answer:* it can now. *Reasoning:*
+agents created through the ElevenLabs API do not get the end-call tool unless it
+is added, so the first version could only wait for the browser to end the
+conversation. The rules for when to hang up live in `agent/agent_config.json`,
+beside the other call rules, and include the one that matters most: when the
+prospect asks not to be called again.
+
+**Market-sensitive news is handed to a consultant, and encouraging coverage of
+it is flagged.**
+*Question:* the prospect said the company was going public in two weeks and the
+agent called it worth pitching — should that be caught? *Answer:* yes, with a
+`SENSITIVE_NEWS` check and a prompt rule. *Reasoning:* an upcoming listing,
+unannounced results or a pending deal is market-sensitive, and an outbound agent
+drumming up publicity for it is a risk for a listed company or its advisers. The
+check fires only when the prospect raises such news and the agent then
+encourages coverage, so asking about news in general is unaffected.
+
+**Booking the follow-up in the agent's own words counts as the booking claim.**
+*Question:* are "I'll get that scheduled for you" and "Someone from Meridian will
+reach out shortly" allowed? *Answer:* yes, as accepted forms of
+`WHAT_HAPPENS_NEXT`. *Reasoning:* booking is the agent's job, and the allowlist
+already permitted it; the checker simply did not recognise the phrasing. The
+accepted forms are held to the same guards as the canonical, so they cannot
+introduce a number, a name or a superlative.
+
+**A call cut off during the opening line is recorded, not scored.**
+*Question:* a session started by accident ended at "Hi," and was scored as a
+missing disclosure — should it count? *Answer:* no; it is stored with
+`ended_during_opening` set. *Reasoning:* the line that makes the disclosure was
+cut off before anyone could hear it and nothing else was said. The rule is
+narrow on purpose: an agent that speaks without disclosing is still a violation.
+
+**Meridian works on pay-on-results.**
+*Question:* should the fictional consultancy work the way the consultancies it is
+modelled on do? *Answer:* yes, as a permitted claim. *Reasoning:* it makes the
+demo closer to the real market, and it is the claim most easily bent into a
+guarantee — which is why a scenario now tests exactly that.
+
