@@ -454,3 +454,29 @@ def test_an_explicit_voice_id_overrides_the_config_for_experiments():
     ]["tts"]
 
     assert tts["voice_id"] == "voice_try"
+
+
+def test_a_rejected_voice_prints_what_to_do_instead_of_a_traceback(tmp_path, monkeypatch, capsys):
+    """Found on the first sync with a voice ID that was not on the account."""
+    from warmline.voice import sync_agent
+
+    class RejectsVoice:
+        def __init__(self, api_key):
+            pass
+
+        def update_agent(self, agent_id, definition):
+            raise ElevenLabsError(
+                'ElevenLabs returned 400 for PATCH: {"detail":{"code":"voice_not_found"}}'
+            )
+
+    env = tmp_path / ".env"
+    env.write_text("")
+    monkeypatch.setenv("WARMLINE_ENV_FILE", str(env))
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "not-a-real-key")
+    monkeypatch.setenv("ELEVENLABS_AGENT_ID", "agent_test")
+    monkeypatch.setattr(sync_agent, "ElevenLabsClient", RejectsVoice)
+
+    assert sync_agent.main() == 1
+    printed = capsys.readouterr().out
+    assert "agent is unchanged" in printed
+    assert "Add to my voices" in printed

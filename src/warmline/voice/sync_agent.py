@@ -19,7 +19,7 @@ from pathlib import Path
 
 from warmline.agent import AgentConfig, load_agent_config
 from warmline.envfile import default_env_path, load_env_file
-from warmline.voice.elevenlabs import ElevenLabsClient
+from warmline.voice.elevenlabs import ElevenLabsClient, ElevenLabsError
 
 #: Anthropic, as the stack this is written for uses. Override with ELEVENLABS_LLM.
 DEFAULT_LLM = "claude-sonnet-4-5"
@@ -99,9 +99,25 @@ def main() -> int:
         llm=os.environ.get("ELEVENLABS_LLM", DEFAULT_LLM),
         voice_id=os.environ.get("ELEVENLABS_VOICE_ID") or None,
     )
-    agent_id, created = sync(
-        ElevenLabsClient(api_key), definition, agent_id=os.environ.get("ELEVENLABS_AGENT_ID")
-    )
+    try:
+        agent_id, created = sync(
+            ElevenLabsClient(api_key), definition, agent_id=os.environ.get("ELEVENLABS_AGENT_ID")
+        )
+    except ElevenLabsError as error:
+        # ElevenLabs rejects the whole update, so a failure here leaves the
+        # agent exactly as it was. Say so, and say what to do, rather than
+        # printing a traceback.
+        print(f"ElevenLabs refused the update, so the agent is unchanged.\n\n  {error}\n")
+        if "voice_not_found" in str(error):
+            voice_id = definition["conversation_config"]["tts"]["voice_id"]
+            print(
+                f"Voice {voice_id} is not available to this account. A voice from the\n"
+                "Voice Library has to be added to your account before an agent can use\n"
+                "it (Voice Library, then 'Add to my voices'), and free plans cannot use\n"
+                "Voice Library voices through the API at all. Put a voice ID from My Voices\n"
+                "in agent/agent_config.json, or try one first with ELEVENLABS_VOICE_ID in .env."
+            )
+        return 1
     if created:
         remember_agent_id(env_path, agent_id)
 
