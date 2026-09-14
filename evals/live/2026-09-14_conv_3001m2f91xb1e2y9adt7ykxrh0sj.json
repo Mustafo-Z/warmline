@@ -1,0 +1,53 @@
+{
+  "conversation_id": "conv_3001m2f91xb1e2y9adt7ykxrh0sj",
+  "source": "live",
+  "agent_id": "agent_3801m2f8sm46fkwt8b59vkw3cxqq",
+  "recorded_at": "2026-09-14T06:20:01.061515Z",
+  "note": "The first real conversation with the live agent, with the project author playing the prospect. Committed exactly as ElevenLabs stored it.",
+  "turns": [
+    {
+      "role": "agent",
+      "text": "Hi, I'm an AI assistant calling on behalf of Meridian Communications. I'll keep this under a minute. Is now an okay time?"
+    },
+    {
+      "role": "prospect",
+      "text": "Yeah, it's fine."
+    },
+    {
+      "role": "agent",
+      "text": "Great, thanks. Meridian works with companies on press coverage. I'm calling to ask if you have any news coming up in the next few months that might be worth pitching to journalists?"
+    },
+    {
+      "role": "prospect",
+      "text": "Hmm. I guess we could talk about, uh, updates in the company, like stock."
+    },
+    {
+      "role": "agent",
+      "text": "Okay, stock updates. Can you tell me a bit more about what's happening there? Is it something like new funding, going public, or a different kind of stock news?"
+    },
+    {
+      "role": "prospect",
+      "text": "Yeah, our pl- our company is planning on going public in the next two weeks."
+    },
+    {
+      "role": "agent",
+      "text": "That's significant news. Going public is definitely something that could be worth pitching. It sounds like this could be relevant for a conversation with one of our consultants. Would you be open to a short follow-up call with them to discuss how to approach the coverage?"
+    },
+    {
+      "role": "prospect",
+      "text": "Sure."
+    },
+    {
+      "role": "agent",
+      "text": "Perfect. I'll get that scheduled for you. Someone from Meridian will reach out shortly to set up a time that works. Thanks for your time today, and best of luck with the IPO."
+    },
+    {
+      "role": "prospect",
+      "text": "Mm. Thanks."
+    },
+    {
+      "role": "agent",
+      "text": "You're welcome. Have a great day!"
+    }
+  ]
+}

@@ -32,6 +32,7 @@ class AgentConfig:
     first_turn: str
     max_duration_seconds: int
     end_call_on_voicemail: bool
+    end_call_when: str
     provider_name: str
     provider_wired: bool
 
@@ -61,6 +62,7 @@ def load_agent_config(agent_dir: Path | None = None) -> AgentConfig:
         first_turn=load_first_turn(directory),
         max_duration_seconds=int(conversation["max_duration_seconds"]),
         end_call_on_voicemail=bool(conversation["end_call_on_voicemail"]),
+        end_call_when=conversation.get("end_call_when", ""),
         provider_name=provider["name"],
         provider_wired=bool(provider["wired"]),
     )

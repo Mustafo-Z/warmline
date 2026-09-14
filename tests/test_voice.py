@@ -165,6 +165,17 @@ def test_the_agent_is_built_from_the_repository_files():
     assert config["tts"]["voice_id"] == "voice_x"
 
 
+def test_the_agent_can_end_the_call_itself():
+    """API-created agents do not get the end_call tool unless it is added."""
+    agent = load_agent_config()
+
+    definition = build_definition(agent, llm="claude-sonnet-4-5", voice_id="v")
+    tool = definition["conversation_config"]["agent"]["prompt"]["built_in_tools"]["end_call"]
+
+    assert tool["params"] == {"system_tool_type": "end_call"}
+    assert tool["description"] == agent.end_call_when
+
+
 def test_the_agent_cannot_be_started_without_a_server_issued_token():
     definition = build_definition(load_agent_config(), llm="claude-sonnet-4-5", voice_id="v")
 
@@ -415,3 +426,13 @@ def test_recent_sessions_lists_only_processed_conversations():
     sessions = client.get("/voice/sessions").json()["sessions"]
 
     assert [s["conversation_id"] for s in sessions] == [processed]
+
+
+def test_a_session_cut_off_during_the_opening_is_stored_but_not_scored():
+    _connection, client = build(FakeVoice(done(("agent", "Hi,..."))))
+    conversation_id = start(client)
+
+    body = client.post(f"/voice/sessions/{conversation_id}/complete").json()
+
+    assert body["checks"]["ended_during_opening"] is True
+    assert body["checks"]["violations"] == []

@@ -24,7 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from warmline.agent import load_agent_config
+from warmline.agent import load_agent_config, load_first_turn
 from warmline.config import load_claims_config, load_disclosure_config, load_policy_config
 from warmline.policy.engine import evaluate_pre_dial
 from warmline.postcall.checks import check_claims, run_checks
@@ -124,6 +124,7 @@ def create_app(
     disclosure_config = load_disclosure_config()
     call_provider = provider or get_provider()
     now_fn = clock or _now
+    pinned_opening = load_first_turn()
     voice = voice_settings or VoiceSettings.from_env(load_agent_config().max_duration_seconds)
     voice_api = voice_client or (ElevenLabsClient(voice.api_key) if voice.enabled else None)
 
@@ -192,7 +193,9 @@ def create_app(
             raise HTTPException(status_code=404, detail="no such scenario") from error
 
         transcript = scenario.transcript()
-        checks = run_checks(transcript, claims_config, disclosure_config)
+        checks = run_checks(
+            transcript, claims_config, disclosure_config, pinned_opening=pinned_opening
+        )
         outcome = extract_outcome(transcript, checks)
 
         return {
@@ -214,6 +217,7 @@ def create_app(
                     for c in checks.classifications
                 ],
                 "opt_out_requested": checks.opt_out_requested,
+                "ended_during_opening": checks.ended_during_opening,
             },
             "outcome": {
                 "interest": outcome.interest,
@@ -460,7 +464,9 @@ def create_app(
     ) -> dict:
         """Normalise, check, extract, write back. One path for every provider."""
         transcript = normalise_transcript(raw_transcript, source=source)
-        checks = run_checks(transcript, claims_config, disclosure_config)
+        checks = run_checks(
+            transcript, claims_config, disclosure_config, pinned_opening=pinned_opening
+        )
         outcome = extract_outcome(transcript, checks)
 
         attempt = repository.get_attempt(connection, attempt_id)
@@ -541,6 +547,7 @@ def create_app(
 
     def _voice_result(row: dict) -> dict:
         outcome = json.loads(row["outcome_json"])
+        abandoned = outcome.pop("ended_during_opening", False)
         return {
             "conversation_id": row["conversation_id"],
             "processed_at": row["processed_at"],
@@ -550,6 +557,7 @@ def create_app(
                 "violations": json.loads(row["violations_json"]),
                 "classifications": json.loads(row["classifications_json"]),
                 "opt_out_requested": outcome["opt_out_requested"],
+                "ended_during_opening": abandoned,
             },
             "outcome": outcome,
         }
@@ -646,7 +654,9 @@ def create_app(
         transcript = normalise_transcript(
             {"turns": conversation.turns}, source="live", conversation_id=conversation_id
         )
-        checks = run_checks(transcript, claims_config, disclosure_config)
+        checks = run_checks(
+            transcript, claims_config, disclosure_config, pinned_opening=pinned_opening
+        )
         outcome = extract_outcome(transcript, checks)
 
         with connection_lock:
@@ -673,6 +683,7 @@ def create_app(
                     "meeting_requested": outcome.meeting_requested,
                     "meeting_preferences": outcome.meeting_preferences,
                     "opt_out_requested": outcome.opt_out_requested,
+                    "ended_during_opening": checks.ended_during_opening,
                 },
                 processed_at=now,
             )

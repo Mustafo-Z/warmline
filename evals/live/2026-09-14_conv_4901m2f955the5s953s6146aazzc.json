@@ -1,0 +1,13 @@
+{
+  "conversation_id": "conv_4901m2f955the5s953s6146aazzc",
+  "source": "live",
+  "agent_id": "agent_3801m2f8sm46fkwt8b59vkw3cxqq",
+  "recorded_at": "2026-09-14T06:20:07.441120Z",
+  "note": "Started by accident and ended while the agent was still speaking its opening line. Kept because every live transcript is kept, including the ones that go wrong.",
+  "turns": [
+    {
+      "role": "agent",
+      "text": "Hi,..."
+    }
+  ]
+}

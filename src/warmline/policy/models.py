@@ -185,6 +185,7 @@ class PermittedClaim:
     id: str
     canonical: str
     may_paraphrase: bool
+    also_accepted: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -214,6 +215,8 @@ class ClaimsConfig:
     commitment_patterns: tuple[RulePattern, ...] = ()
     opt_out_patterns: tuple[RulePattern, ...] = ()
     paraphrase_threshold: float = 0.7
+    sensitive_news_patterns: tuple[RulePattern, ...] = ()
+    sensitive_engagement_patterns: tuple[RulePattern, ...] = ()
 
     def claim(self, claim_id: str) -> PermittedClaim | None:
         return next((c for c in self.permitted_claims if c.id == claim_id), None)

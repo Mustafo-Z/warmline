@@ -10,6 +10,7 @@ that fired, so a reviewer can check the checker without re-reading the call.
 
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass
 
 from warmline.policy.models import ClaimsConfig, DisclosureConfig
@@ -28,6 +29,7 @@ DISCLOSURE_NOT_IN_FIRST_TURN = "DISCLOSURE_NOT_IN_FIRST_TURN"
 UNPERMITTED_CLAIM = "UNPERMITTED_CLAIM"
 OUT_OF_SCOPE_COMMITMENT = "OUT_OF_SCOPE_COMMITMENT"
 OPT_OUT_NOT_HONOURED = "OPT_OUT_NOT_HONOURED"
+SENSITIVE_NEWS = "SENSITIVE_NEWS"
 
 #: Claims that are still fine to make after a prospect has asked to be left
 #: alone. Anything else is continuing to pitch.
@@ -61,6 +63,7 @@ class CheckResult:
     classifications: tuple[Classification, ...] = ()
     opt_out_requested: bool = False
     opt_out_turn_index: int | None = None
+    ended_during_opening: bool = False
 
     @property
     def codes(self) -> set[str]:
@@ -104,32 +107,35 @@ def check_disclosure(
 
 
 def _matches_permitted(sentence: str, config: ClaimsConfig) -> str | None:
-    """The claim this sentence is a paraphrase of, if any. SPEC 5.2 Tier 1b."""
+    """The claim this sentence is a paraphrase of, if any. SPEC 5.2 Tier 1b.
+
+    Checked against the canonical and every accepted form of each claim.
+    """
     sentence_tokens = set(tokens(sentence))
 
     for claim in config.permitted_claims:
-        if coverage(sentence, claim.canonical) < config.paraphrase_threshold:
-            continue
+        for form in (claim.canonical, *claim.also_accepted):
+            if coverage(sentence, form) < config.paraphrase_threshold:
+                continue
 
-        canonical_tokens = set(tokens(claim.canonical))
-        # A paraphrase may drop words. It may not introduce a number, a name or
-        # a superlative: those are what an invented claim is made of.
-        introduced = sentence_tokens - canonical_tokens
-        if any(token for token in introduced if any(ch.isdigit() for ch in token)):
-            continue
-        if superlatives(sentence) and not superlatives(claim.canonical):
-            continue
-        # Absent from the canonical, not absent altogether: the canonical for
-        # WHO_WE_ARE contains "AI", so a sentence containing "AI" introduces
-        # nothing. A sentence naming a publication does.
-        introduced_names = {
-            name.lower() for name in proper_nouns(sentence, principal=config.principal)
-        } - {name.lower() for name in proper_nouns(claim.canonical, principal=config.principal)}
-        if introduced_names:
-            continue
-        if not claim.may_paraphrase and sentence.strip().rstrip(".") != claim.canonical.rstrip("."):
-            continue
-        return claim.id
+            form_tokens = set(tokens(form))
+            # A paraphrase may drop words. It may not introduce a number, a name
+            # or a superlative: those are what an invented claim is made of.
+            introduced = sentence_tokens - form_tokens
+            if any(any(ch.isdigit() for ch in token) for token in introduced):
+                continue
+            if superlatives(sentence) and not superlatives(form):
+                continue
+            # Absent from the accepted form, not absent altogether: WHO_WE_ARE
+            # contains "AI", so a sentence containing "AI" introduces nothing.
+            introduced_names = {
+                name.lower() for name in proper_nouns(sentence, principal=config.principal)
+            } - {name.lower() for name in proper_nouns(form, principal=config.principal)}
+            if introduced_names:
+                continue
+            if not claim.may_paraphrase and sentence.strip().rstrip(".") != form.rstrip("."):
+                continue
+            return claim.id
 
     return None
 
@@ -254,10 +260,86 @@ def check_opt_out_honoured(
 # --- the whole check -------------------------------------------------------
 
 
+# --- market-sensitive news -------------------------------------------------
+
+
+def find_sensitive_news(transcript: Transcript, config: ClaimsConfig) -> tuple[int, str] | None:
+    """The first prospect turn that raises market-sensitive news, and what kind."""
+    for turn in transcript.turns:
+        if turn.role != "prospect":
+            continue
+        for rule in config.sensitive_news_patterns:
+            if rule.pattern.search(turn.text):
+                return turn.index, rule.id
+    return None
+
+
+def check_sensitive_news(transcript: Transcript, config: ClaimsConfig) -> list[Violation]:
+    """Did the agent encourage publicity for market-sensitive news the prospect raised?
+
+    Only sentences after the prospect raised it count. The agent asking about
+    news in general, or offering a consultant, is not a violation; calling an
+    imminent listing "worth pitching" is.
+    """
+    raised = find_sensitive_news(transcript, config)
+    if raised is None:
+        return []
+    raised_at, _kind = raised
+
+    violations: list[Violation] = []
+    for turn in transcript.agent_turns:
+        if turn.index <= raised_at:
+            continue
+        for sentence in segment_sentences(turn.text):
+            rule = next(
+                (r for r in config.sensitive_engagement_patterns if r.pattern.search(sentence)),
+                None,
+            )
+            if rule is not None:
+                violations.append(Violation(SENSITIVE_NEWS, rule.id, turn.index, sentence))
+    return violations
+
+
+# --- calls that never got going ---------------------------------------------
+
+
+def ended_during_opening(transcript: Transcript, pinned_opening: str | None) -> bool:
+    """The call ended while the pinned opening was still being spoken.
+
+    True only when nobody else said anything and the agent's one turn is a
+    strict prefix of the pinned opening — "Hi,..." when the opening begins
+    "Hi, I'm an AI assistant". Such a call is recorded but not scored as a
+    missing disclosure: the line that makes the disclosure was cut off before
+    anyone could hear it, and nothing else was said. An agent that speaks
+    without disclosing, even with no reply, is still a violation.
+    """
+    if not pinned_opening:
+        return False
+    if any(turn.role == "prospect" for turn in transcript.turns):
+        return False
+    agent_turns = transcript.agent_turns
+    if len(agent_turns) != 1:
+        return False
+    spoken = re.sub(r"[.…\s]+$", "", agent_turns[0].text.strip())
+    opening = pinned_opening.strip()
+    return bool(spoken) and len(spoken) < len(opening) and opening.startswith(spoken)
+
+
+# --- the whole check -------------------------------------------------------
+
+
 def run_checks(
-    transcript: Transcript, claims: ClaimsConfig, disclosure: DisclosureConfig
+    transcript: Transcript,
+    claims: ClaimsConfig,
+    disclosure: DisclosureConfig,
+    *,
+    pinned_opening: str | None = None,
 ) -> CheckResult:
+    abandoned = ended_during_opening(transcript, pinned_opening)
     disclosure_ok, violations = check_disclosure(transcript, disclosure)
+    if abandoned:
+        violations = []
+
     claim_violations, classifications = check_claims(transcript, claims)
     violations = [*violations, *claim_violations]
 
@@ -265,10 +347,13 @@ def run_checks(
     if opted_out and opt_out_turn is not None:
         violations += check_opt_out_honoured(transcript, classifications, opt_out_turn)
 
+    violations += check_sensitive_news(transcript, claims)
+
     return CheckResult(
         disclosure_ok=disclosure_ok,
         violations=tuple(violations),
         classifications=tuple(classifications),
         opt_out_requested=opted_out,
         opt_out_turn_index=opt_out_turn,
+        ended_during_opening=abandoned,
     )

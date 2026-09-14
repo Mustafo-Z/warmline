@@ -6,9 +6,10 @@ a compliance reviewer would have to read. It answers "what happened on this
 call" well enough to fill a row in a table, and it is labelled
 `extraction_method = "deterministic"` so nobody mistakes it for comprehension.
 
-An LLM extractor would do this better and is listed in the README as the
-obvious next step. It is not here because it would need a key, and the whole
-point of the deterministic tier is that it runs in CI without one.
+The first live conversation showed how thin that is: an agreed meeting and a
+company going public were both missed. The two fixes below came from that
+transcript, which is now a regression test. An LLM extractor would do this
+properly and is listed in the README as the obvious next step.
 """
 
 from __future__ import annotations
@@ -40,6 +41,12 @@ NEWS_KEYWORDS = (
     "award",
     "expansion",
     "product",
+    # Added after the first live call, where "going public in the next two
+    # weeks" matched none of the words above.
+    "going public",
+    "ipo",
+    "listing",
+    "flotation",
 )
 NO_NEWS = (
     "nothing at the moment",
@@ -50,19 +57,18 @@ NO_NEWS = (
     "heads down",
     "nothing planned",
 )
-ASSENT = (
-    "yes",
-    "yeah",
+ASSENT_PHRASES = (
     "that would be useful",
     "sounds good",
     "go on then",
     "send something",
     "send me something",
-    "fine",
-    "ok",
-    "okay",
     "please do",
 )
+# Single words count as assent only in a sentence with no negation in it, so
+# "sure" agrees and "I'm not sure" does not.
+_ASSENT_WORD = re.compile(r"\b(yes|yeah|yep|sure|fine|ok|okay|absolutely)\b", re.IGNORECASE)
+_NEGATION = re.compile(r"\b(not|no|don'?t|never|won'?t)\b", re.IGNORECASE)
 CALLBACK = ("call me back", "try me later", "later in the year", "after the summer", "next quarter")
 
 _MEETING_PREFERENCE = re.compile(
@@ -72,6 +78,17 @@ _MEETING_PREFERENCE = re.compile(
 )
 
 MEETING_OFFER_CLAIM = "WHAT_HAPPENS_NEXT"
+
+# An offer is not always the permitted claim word for word. In the first live
+# call the agent asked "Would you be open to a short follow-up call?", which the
+# claim checker rightly classifies as a question, so looking only for the
+# WHAT_HAPPENS_NEXT claim missed an offer the prospect then accepted.
+_MEETING_OFFER = re.compile(
+    r"\b(follow[- ]up call"
+    r"|call with (one of )?our consultants?"
+    r"|(book|set up|arrange|schedule)\b[^.?!]{0,40}\b(call|meeting|chat))\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -90,6 +107,15 @@ def _contains(text: str, needles: tuple[str, ...]) -> bool:
     return any(needle in lowered for needle in needles)
 
 
+def _assents(reply: str) -> bool:
+    if _contains(reply, ASSENT_PHRASES):
+        return True
+    return any(
+        _ASSENT_WORD.search(sentence) and not _NEGATION.search(sentence)
+        for sentence in segment_sentences(reply)
+    )
+
+
 def extract_outcome(transcript: Transcript, checks: CheckResult) -> Outcome:
     prospect_turns = [turn for turn in transcript.turns if turn.role == "prospect"]
     prospect_text = " ".join(turn.text for turn in prospect_turns)
@@ -98,15 +124,18 @@ def extract_outcome(transcript: Transcript, checks: CheckResult) -> Outcome:
         classification.turn_index
         for classification in checks.classifications
         if classification.rule_id == MEETING_OFFER_CLAIM
+    ] + [
+        turn.index
+        for turn in transcript.turns
+        if turn.role == "agent" and _MEETING_OFFER.search(turn.text)
     ]
+    first_offer = min(offer_turns) if offer_turns else None
     replies_after_offer = (
-        [turn.text for turn in prospect_turns if turn.index > min(offer_turns)]
-        if offer_turns
+        [turn.text for turn in prospect_turns if turn.index > first_offer]
+        if first_offer is not None
         else []
     )
-    meeting_requested = bool(offer_turns) and any(
-        _contains(reply, ASSENT) for reply in replies_after_offer
-    )
+    meeting_requested = any(_assents(reply) for reply in replies_after_offer)
 
     said_no_news = _contains(prospect_text, NO_NEWS)
     news_sentence = next(

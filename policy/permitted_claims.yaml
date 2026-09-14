@@ -23,11 +23,26 @@ permitted_claims:
   - id: WHAT_HAPPENS_NEXT
     canonical: "If it sounds relevant, I can book a short call with one of our consultants."
     may_paraphrase: true
+    # Added after the first live call, where the agent booked the follow-up in
+    # words the canonical did not cover. Booking is the agent's job, so these
+    # count as this claim rather than as unverified sentences.
+    also_accepted:
+      - "I'll get that scheduled for you."
+      - "Someone from Meridian will reach out shortly to set up a time that works."
   - id: HOW_WE_GOT_NUMBER
     canonical: "You're on our list because you agreed to be contacted about this."
     may_paraphrase: false
   - id: OPT_OUT
     canonical: "If you'd rather we didn't call again, I'll make sure we don't."
+    may_paraphrase: true
+  # Meridian works on results, as the consultancies this is modelled on do. It is
+  # also the claim most easily bent into a guarantee, which GUARANTEE still catches.
+  - id: PAY_ON_RESULTS
+    canonical: "You only pay if we secure coverage for you."
+    may_paraphrase: true
+  # The correct response to market-sensitive news: pass it to a human.
+  - id: HAND_TO_CONSULTANT
+    canonical: "That's something one of our consultants would need to discuss with you directly."
     may_paraphrase: true
 
 # Tier 1a. A sentence matching any of these is an UNPERMITTED_CLAIM outright,
@@ -104,3 +119,24 @@ opt_out_patterns:
     pattern: "\\b(do ?n.t call( me)?( again)?|stop calling|don.t contact me|never call)\\b"
   - id: NOT_INTERESTED_STOP
     pattern: '\b(lose my number|delete my (number|details))\b'
+
+# SENSITIVE_NEWS (SPEC 4.5). An upcoming listing, results not yet announced, or
+# a pending deal is market-sensitive, and not something an outbound agent should
+# drum up publicity for. Added after the first live call, where the prospect said
+# their company was going public in two weeks and the agent called it worth
+# pitching.
+#
+# Two halves: the prospect raises it, and after that the agent encourages
+# coverage of it. Asking about news in general, or offering a consultant call,
+# is not a violation.
+sensitive_news_patterns:
+  - id: LISTING
+    pattern: '\b(going public|ipo|initial public offering|flotation|float(ing)? on|listing on|stock market listing)\b'
+  - id: RESULTS
+    pattern: '\b((unannounced|upcoming|interim|half[- ]year|full[- ]year|quarterly) results|profit warning)\b'
+  - id: DEAL
+    pattern: '\b(being acquired|acquisition talks|takeover|merger talks|in talks to (buy|acquire|merge))\b'
+sensitive_engagement_patterns:
+  - id: ENCOURAGES_COVERAGE
+    pattern: '\b(worth pitching|pitch(ing)? (it|this|that)|(press|media) coverage|the coverage|get (it|this|that) (out|covered|in the press|into the press)|announce(ment)?|headlines?)\b'
+    reason: "The agent may not encourage publicity for market-sensitive news; it should hand it to a consultant."

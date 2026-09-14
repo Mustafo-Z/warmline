@@ -136,6 +136,7 @@ def load_claims_config(policy_dir: Path | None = None) -> ClaimsConfig:
                 id=entry["id"],
                 canonical=entry["canonical"],
                 may_paraphrase=bool(entry.get("may_paraphrase", False)),
+                also_accepted=tuple(entry.get("also_accepted") or ()),
             )
             for entry in raw.get("permitted_claims") or []
         ),
@@ -143,6 +144,8 @@ def load_claims_config(policy_dir: Path | None = None) -> ClaimsConfig:
         non_claim_patterns=_rules(raw.get("non_claim_patterns")),
         commitment_patterns=_rules(raw.get("commitment_patterns")),
         opt_out_patterns=_rules(raw.get("opt_out_patterns")),
+        sensitive_news_patterns=_rules(raw.get("sensitive_news_patterns")),
+        sensitive_engagement_patterns=_rules(raw.get("sensitive_engagement_patterns")),
         paraphrase_threshold=float(raw.get("paraphrase_threshold", 0.7)),
         non_claim_eligibility=NonClaimEligibility(
             no_numeric_tokens=bool(eligibility.get("no_numeric_tokens", True)),

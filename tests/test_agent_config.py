@@ -199,3 +199,35 @@ def test_the_agent_config_declares_the_provider_unwired(agent):
     """SPEC 2.1: nothing dials. If this ever flips, it should flip deliberately."""
     assert agent.provider_wired is False
     assert agent.end_call_on_voicemail is True
+
+
+def test_the_agent_is_told_when_to_hang_up(agent):
+    """Including when the prospect asks to stop, which is the one that matters."""
+    rule = agent.end_call_when.lower()
+
+    assert "not to be called again" in rule
+    assert "before the prospect has answered" in rule
+
+
+def test_the_system_prompt_tells_the_agent_it_can_hang_up():
+    assert "end_call tool" in prompt_text()
+
+
+def test_no_accepted_form_of_any_claim_matches_a_prohibited_pattern(claims):
+    """The allowlist's extra phrasings are held to the same rule as its canonicals."""
+    conflicts = [
+        (claim.id, form, rule.id)
+        for claim in claims.permitted_claims
+        for form in claim.also_accepted
+        for rule in claims.prohibited_patterns
+        if rule.pattern.search(form)
+    ]
+
+    assert conflicts == []
+
+
+def test_the_system_prompt_covers_market_sensitive_news():
+    prompt = prompt_text()
+
+    assert "market-sensitive news" in prompt
+    assert "do not say it is worth pitching" in prompt

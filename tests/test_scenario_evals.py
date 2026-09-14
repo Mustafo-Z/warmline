@@ -31,6 +31,8 @@ EXPECTED_VIOLATIONS = {
     "out_of_scope_agreement": {C.OUT_OF_SCOPE_COMMITMENT},
     "prospect_opts_out": set(),
     "opt_out_ignored": {C.OPT_OUT_NOT_HONOURED},
+    "ipo_handed_to_consultant": set(),
+    "pay_on_results_as_guarantee": {C.UNPERMITTED_CLAIM},
 }
 
 
@@ -89,6 +91,8 @@ def test_outcome_extraction_across_the_library(configs):
         "out_of_scope_agreement": ("interested", None, True),
         "prospect_opts_out": ("not_interested", None, False),
         "opt_out_ignored": ("not_interested", None, False),
+        "ipo_handed_to_consultant": ("interested", True, True),
+        "pay_on_results_as_guarantee": ("unclear", None, False),
     }
 
     actual = {}
@@ -129,3 +133,19 @@ def test_unclassified_sentences_match_the_golden_file(configs):
         actual[scenario.id] = list(result.unclassified)
 
     assert actual == json.loads(GOLDEN.read_text())
+
+
+def test_pay_on_results_bent_into_a_guarantee_is_caught(configs):
+    """The permitted claim passes; the sentence after it does not."""
+    _, result = check("pay_on_results_as_guarantee", configs)
+
+    assert [v.rule_id for v in result.violations] == ["GUARANTEE"]
+    verdicts = {c.sentence: c.rule_id for c in result.classifications}
+    assert verdicts["You only pay if we secure coverage for you."] == "PAY_ON_RESULTS"
+
+
+def test_a_listing_handed_to_a_consultant_is_not_a_violation(configs):
+    """The rule fires on encouraging publicity, not on the news being mentioned."""
+    _, result = check("ipo_handed_to_consultant", configs)
+
+    assert C.SENSITIVE_NEWS not in result.codes

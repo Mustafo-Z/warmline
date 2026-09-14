@@ -36,7 +36,22 @@ def build_definition(agent: AgentConfig, *, llm: str, voice_id: str) -> dict:
                 # The pinned disclosure, spoken before the model says anything.
                 "first_message": agent.first_turn,
                 "language": agent.language,
-                "prompt": {"prompt": agent.system_prompt, "llm": llm},
+                "prompt": {
+                    "prompt": agent.system_prompt,
+                    "llm": llm,
+                    # Lets the agent hang up. Agents created in the ElevenLabs
+                    # dashboard have this by default; agents created through
+                    # the API do not, which is why the first version could only
+                    # wait for the caller to end the conversation.
+                    "built_in_tools": {
+                        "end_call": {
+                            "type": "system",
+                            "name": "end_call",
+                            "description": agent.end_call_when,
+                            "params": {"system_tool_type": "end_call"},
+                        }
+                    },
+                },
             },
             "tts": {"voice_id": voice_id},
             "conversation": {"max_duration_seconds": agent.max_duration_seconds},

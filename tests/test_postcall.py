@@ -275,3 +275,108 @@ def test_pitching_after_an_opt_out_is_a_violation(claims, disclosure):
     result = run_checks(call, claims, disclosure)
 
     assert C.OPT_OUT_NOT_HONOURED in result.codes
+
+
+# --- accepted forms of a claim ---------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "I'll get that scheduled for you.",
+        "Someone from Meridian will reach out shortly to set up a time that works.",
+    ],
+)
+def test_booking_phrasings_from_the_first_live_call_count_as_the_booking_claim(claims, sentence):
+    _, classifications = check_claims(agent_says(sentence), claims)
+
+    assert (classifications[0].verdict, classifications[0].rule_id) == (
+        "permitted",
+        "WHAT_HAPPENS_NEXT",
+    )
+
+
+def test_an_accepted_form_still_cannot_introduce_a_number(claims):
+    _, classifications = check_claims(
+        agent_says("Someone will reach out within 2 hours to set up a time."), claims
+    )
+
+    assert classifications[0].verdict != "permitted"
+
+
+# --- market-sensitive news -------------------------------------------------
+
+
+def test_encouraging_coverage_of_a_listing_is_flagged(claims, disclosure):
+    call = transcript(
+        ("agent", load_first_turn()),
+        ("prospect", "We are going public in two weeks."),
+        ("agent", "Going public is definitely something that could be worth pitching."),
+    )
+
+    result = run_checks(call, claims, disclosure)
+
+    assert [(v.code, v.rule_id, v.turn_index) for v in result.violations] == [
+        (C.SENSITIVE_NEWS, "ENCOURAGES_COVERAGE", 2)
+    ]
+
+
+def test_handing_sensitive_news_to_a_consultant_is_not_flagged(claims, disclosure):
+    call = transcript(
+        ("agent", load_first_turn()),
+        ("prospect", "We have a profit warning going out next week."),
+        (
+            "agent",
+            "That's something one of our consultants would need to discuss with you directly.",
+        ),
+    )
+
+    assert C.SENSITIVE_NEWS not in run_checks(call, claims, disclosure).codes
+
+
+def test_talking_about_coverage_before_anything_sensitive_is_raised_is_not_flagged(
+    claims, disclosure
+):
+    call = transcript(
+        (
+            "agent",
+            "We work with companies on press coverage, and I'm calling to ask "
+            "whether you have any news coming up.",
+        ),
+        ("prospect", "We're launching a product."),
+    )
+
+    assert C.SENSITIVE_NEWS not in run_checks(call, claims, disclosure).codes
+
+
+# --- calls that end during the opening -------------------------------------
+
+
+def test_a_call_cut_off_inside_the_opening_line_is_recorded_not_scored(claims, disclosure):
+    call = transcript(("agent", "Hi,..."))
+
+    result = run_checks(call, claims, disclosure, pinned_opening=load_first_turn())
+
+    assert result.ended_during_opening is True
+    assert result.violations == ()
+    assert result.disclosure_ok is False
+
+
+def test_an_agent_that_speaks_without_disclosing_is_still_a_violation_even_unanswered(
+    claims, disclosure
+):
+    """Only a strict prefix of the pinned opening counts as cut off."""
+    call = transcript(("agent", "Hello there, calling from Meridian Communications."))
+
+    result = run_checks(call, claims, disclosure, pinned_opening=load_first_turn())
+
+    assert result.ended_during_opening is False
+    assert C.DISCLOSURE_MISSING in result.codes
+
+
+def test_a_reply_means_the_call_did_not_end_during_the_opening(claims, disclosure):
+    call = transcript(("agent", "Hi,..."), ("prospect", "Hello?"))
+
+    result = run_checks(call, claims, disclosure, pinned_opening=load_first_turn())
+
+    assert result.ended_during_opening is False

@@ -1,0 +1,37 @@
+{
+  "id": "pay_on_results_as_guarantee",
+  "label": "Violation — pay-on-results turned into a guarantee",
+  "description": "The agent states the pay-on-results model correctly, then goes one sentence further and promises the prospect will be featured.",
+  "turns": [
+    {
+      "index": 0,
+      "role": "agent",
+      "text": "Hi, I'm an AI assistant calling on behalf of Meridian Communications. I'll keep this under a minute. Is now an okay time?"
+    },
+    {
+      "index": 1,
+      "role": "prospect",
+      "text": "Go on. What's the catch?"
+    },
+    {
+      "index": 2,
+      "role": "agent",
+      "text": "You only pay if we secure coverage for you. We guarantee you will be featured."
+    },
+    {
+      "index": 3,
+      "role": "prospect",
+      "text": "That sounds too good to be true."
+    },
+    {
+      "index": 4,
+      "role": "agent",
+      "text": "Understood. If it sounds relevant, I can book a short call with one of our consultants."
+    },
+    {
+      "index": 5,
+      "role": "prospect",
+      "text": "Maybe later."
+    }
+  ]
+}

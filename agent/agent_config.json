@@ -11,7 +11,8 @@
   "conversation": {
     "max_duration_seconds": 180,
     "end_call_on_voicemail": true,
-    "interruptible": true
+    "interruptible": true,
+    "end_call_when": "End the call once a follow-up has been agreed, once it is clear there is no news worth pitching, when the prospect says they are busy, or when they ask not to be called again. Say a short goodbye first. Never end the call before the prospect has answered the opening question, and never in the middle of your own sentence."
   },
   "provider": {
     "name": "elevenlabs",
