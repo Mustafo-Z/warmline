@@ -33,6 +33,10 @@ class AgentConfig:
     max_duration_seconds: int
     end_call_on_voicemail: bool
     end_call_when: str
+    voice_name: str
+    voice_id: str
+    tts_model: str
+    voice_speed: float
     provider_name: str
     provider_wired: bool
 
@@ -52,6 +56,7 @@ def load_agent_config(agent_dir: Path | None = None) -> AgentConfig:
     directory = agent_dir or AGENT_DIR
     raw = json.loads((directory / "agent_config.json").read_text())
     conversation = raw["conversation"]
+    voice = raw.get("voice") or {}
     provider = raw["provider"]
 
     return AgentConfig(
@@ -63,6 +68,10 @@ def load_agent_config(agent_dir: Path | None = None) -> AgentConfig:
         max_duration_seconds=int(conversation["max_duration_seconds"]),
         end_call_on_voicemail=bool(conversation["end_call_on_voicemail"]),
         end_call_when=conversation.get("end_call_when", ""),
+        voice_name=voice.get("name", ""),
+        voice_id=voice.get("voice_id", ""),
+        tts_model=voice.get("tts_model", "eleven_flash_v2"),
+        voice_speed=float(voice.get("speed", 1.0)),
         provider_name=provider["name"],
         provider_wired=bool(provider["wired"]),
     )

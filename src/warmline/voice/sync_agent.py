@@ -21,14 +21,11 @@ from warmline.agent import AgentConfig, load_agent_config
 from warmline.envfile import default_env_path, load_env_file
 from warmline.voice.elevenlabs import ElevenLabsClient
 
-#: A premade ElevenLabs voice. Override with ELEVENLABS_VOICE_ID.
-DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
-
 #: Anthropic, as the stack this is written for uses. Override with ELEVENLABS_LLM.
 DEFAULT_LLM = "claude-sonnet-4-5"
 
 
-def build_definition(agent: AgentConfig, *, llm: str, voice_id: str) -> dict:
+def build_definition(agent: AgentConfig, *, llm: str, voice_id: str | None = None) -> dict:
     return {
         "name": agent.name,
         "conversation_config": {
@@ -53,7 +50,14 @@ def build_definition(agent: AgentConfig, *, llm: str, voice_id: str) -> dict:
                     },
                 },
             },
-            "tts": {"voice_id": voice_id},
+            # The voice lives in agent/agent_config.json, so changing how the
+            # agent sounds is a reviewed edit, like changing what it says.
+            # ELEVENLABS_VOICE_ID can override it for trying voices out.
+            "tts": {
+                "voice_id": voice_id or agent.voice_id,
+                "model_id": agent.tts_model,
+                "speed": agent.voice_speed,
+            },
             "conversation": {"max_duration_seconds": agent.max_duration_seconds},
         },
         # Sessions can only be opened with a token this service issued after
@@ -93,7 +97,7 @@ def main() -> int:
     definition = build_definition(
         agent,
         llm=os.environ.get("ELEVENLABS_LLM", DEFAULT_LLM),
-        voice_id=os.environ.get("ELEVENLABS_VOICE_ID", DEFAULT_VOICE_ID),
+        voice_id=os.environ.get("ELEVENLABS_VOICE_ID") or None,
     )
     agent_id, created = sync(
         ElevenLabsClient(api_key), definition, agent_id=os.environ.get("ELEVENLABS_AGENT_ID")
@@ -104,6 +108,8 @@ def main() -> int:
     print(f"{'Created' if created else 'Updated'} agent {agent_id}")
     print(f"  opening line: {agent.first_turn}")
     print(f"  model: {definition['conversation_config']['agent']['prompt']['llm']}")
+    tts = definition["conversation_config"]["tts"]
+    print(f"  voice: {agent.voice_name or tts['voice_id']}, speech model {tts['model_id']}")
     print(f"  max call length: {agent.max_duration_seconds}s, auth required: yes")
     if created:
         print(f"  agent id written to {env_path}")

@@ -436,3 +436,21 @@ def test_a_session_cut_off_during_the_opening_is_stored_but_not_scored():
 
     assert body["checks"]["ended_during_opening"] is True
     assert body["checks"]["violations"] == []
+
+
+def test_the_voice_and_speech_model_come_from_the_agent_config():
+    agent = load_agent_config()
+
+    tts = build_definition(agent, llm="claude-sonnet-4-5")["conversation_config"]["tts"]
+
+    assert tts["voice_id"] == agent.voice_id
+    assert tts["model_id"] == agent.tts_model
+    assert tts["speed"] == agent.voice_speed
+
+
+def test_an_explicit_voice_id_overrides_the_config_for_experiments():
+    tts = build_definition(load_agent_config(), llm="claude-sonnet-4-5", voice_id="voice_try")[
+        "conversation_config"
+    ]["tts"]
+
+    assert tts["voice_id"] == "voice_try"

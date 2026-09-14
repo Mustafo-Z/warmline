@@ -231,3 +231,21 @@ def test_the_system_prompt_covers_market_sensitive_news():
 
     assert "market-sensitive news" in prompt
     assert "do not say it is worth pitching" in prompt
+
+
+# The speech models ElevenLabs accepts for an agent, from their agent API
+# reference. A typo here would only surface as a failed sync on the server.
+AGENT_TTS_MODELS = {
+    "eleven_turbo_v2",
+    "eleven_turbo_v2_5",
+    "eleven_flash_v2",
+    "eleven_flash_v2_5",
+    "eleven_multilingual_v2",
+    "eleven_v3_conversational",
+}
+
+
+def test_the_voice_is_set_in_the_repository_with_a_valid_speech_model(agent):
+    assert agent.voice_id
+    assert agent.tts_model in AGENT_TTS_MODELS
+    assert 0.7 <= agent.voice_speed <= 1.2
