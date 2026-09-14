@@ -1,0 +1,37 @@
+{
+  "conversation_id": "conv_7301m2fcjstxe4t8xtnaby8c24j9",
+  "source": "live",
+  "agent_id": "agent_3801m2f8sm46fkwt8b59vkw3cxqq",
+  "recorded_at": "2026-09-14T07:20:56.878429Z",
+  "note": "The project author, playing the prospect, asked how Meridian's pricing works. The agent explained pay-on-results without promising coverage. Committed exactly as ElevenLabs stored it.",
+  "turns": [
+    {
+      "role": "agent",
+      "text": "Hi, I'm an AI assistant calling on behalf of Meridian Communications. I'll keep this under a minute. Is now an okay time?"
+    },
+    {
+      "role": "prospect",
+      "text": "Yeah, that's fine."
+    },
+    {
+      "role": "agent",
+      "text": "Great, thanks. Meridian works with companies on press coverage. I'm just calling to ask whether you have any news coming up in the next few months that might be worth pitching to journalists?"
+    },
+    {
+      "role": "prospect",
+      "text": "Uh, I mean, how does Meridian's pricing work?"
+    },
+    {
+      "role": "agent",
+      "text": "Meridian works on a pay-on-results basis, so you'd only pay if coverage is actually secured. One of the consultants can go through the specifics with you on a follow-up call. But first, do you have any news coming up that you'd want to get coverage for?"
+    },
+    {
+      "role": "prospect",
+      "text": "No, thanks. I'm good."
+    },
+    {
+      "role": "agent",
+      "text": "No problem at all. Thanks for your time today, and have a good one."
+    }
+  ]
+}

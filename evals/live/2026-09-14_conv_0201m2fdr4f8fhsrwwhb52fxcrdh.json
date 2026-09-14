@@ -1,0 +1,53 @@
+{
+  "conversation_id": "conv_0201m2fdr4f8fhsrwwhb52fxcrdh",
+  "source": "live",
+  "agent_id": "agent_3801m2f8sm46fkwt8b59vkw3cxqq",
+  "recorded_at": "2026-09-14T07:42:04.507004Z",
+  "note": "The project author, playing the prospect, asked about pricing and then what kind of news counts. The author reported that the agent felt slow to respond on this call. Committed exactly as ElevenLabs stored it.",
+  "turns": [
+    {
+      "role": "agent",
+      "text": "Hi, I'm an AI assistant calling on behalf of Meridian Communications. I'll keep this under a minute. Is now an okay time?"
+    },
+    {
+      "role": "prospect",
+      "text": "Yeah, it's fine."
+    },
+    {
+      "role": "agent",
+      "text": "Great, thanks. Meridian works with companies on press coverage. I'm just calling to ask if you have any news coming up in the next few months that might be worth pitching to journalists?"
+    },
+    {
+      "role": "prospect",
+      "text": "Mm."
+    },
+    {
+      "role": "agent",
+      "text": "Sorry, I didn't quite..."
+    },
+    {
+      "role": "prospect",
+      "text": "Um, what's your, what's your pricing scheme?"
+    },
+    {
+      "role": "agent",
+      "text": "A consultant would need to discuss the specifics with you directly, but I can tell you that Meridian works on a pay-on-results basis, so you'd only pay if coverage is actually secured. \n\nBut first, can I ask if you do have any news coming up that you'd want to get coverage for?"
+    },
+    {
+      "role": "prospect",
+      "text": "Hmm. I was thinking... Well, what kind of news are they usually, are usually discussed?"
+    },
+    {
+      "role": "agent",
+      "text": "It could be things like a new product launch, a funding round, expansion into new markets, a significant partnership, major company milestones, or really anything newsworthy that would be of interest to your industry. \n\nWhat kind of business are you in, and is there anything like that on the horizon for you?"
+    },
+    {
+      "role": "prospect",
+      "text": "Uh, not really."
+    },
+    {
+      "role": "agent",
+      "text": "No problem at all. If anything does come up in the future and you'd like to explore getting coverage for it, you're welcome to reach out to Meridian directly. \n\nThanks for your time today, and have a great day."
+    }
+  ]
+}

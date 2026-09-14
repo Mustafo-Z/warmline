@@ -27,6 +27,7 @@ GOLDEN = Path(__file__).parent / "golden" / "live_unclassified.json"
 FIRST_CALL = "conv_3001m2f91xb1e2y9adt7ykxrh0sj"
 CUT_OFF_CALL = "conv_4901m2f955the5s953s6146aazzc"
 SECOND_CALL = "conv_3301m2fcg3j2evyvsj8y09p1mkrn"
+PRICING_CALLS = ("conv_7301m2fcjstxe4t8xtnaby8c24j9", "conv_0201m2fdr4f8fhsrwwhb52fxcrdh")
 
 
 def fixtures() -> dict[str, dict]:
@@ -150,3 +151,12 @@ def test_the_extractor_fixes_hold_on_a_call_they_were_not_written_against(config
     assert outcome.interest == "interested"
     assert outcome.meeting_requested is True
     assert outcome.has_news is True
+
+
+@pytest.mark.parametrize("conversation_id", PRICING_CALLS)
+def test_pay_on_results_was_explained_without_promising_coverage(configs, conversation_id):
+    """Asked about pricing twice, the agent described the model and stopped there."""
+    _transcript, result = check(conversation_id, configs)
+
+    assert result.disclosure_ok is True
+    assert result.violations == ()
