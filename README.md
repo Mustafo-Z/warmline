@@ -9,8 +9,6 @@ layer around it: the checks that decide whether a call may be placed at all,
 and the checks that verify afterwards whether the agent stayed inside what it
 was permitted to say.
 
-Running at **https://warmline.mziyo.com**. The live voice section needs a passcode, sent with the link.
-
 **This build places no telephone calls.** Outbound calls are simulated by
 replaying version-controlled conversation scenarios through the same pipeline a
 real call would take, and no call was placed in the making of this project. The
@@ -18,6 +16,26 @@ reasoning is in [docs/SPEC.md](docs/SPEC.md) section 2. The one real
 conversation on the page is the live voice section, which you start yourself in
 your own browser with no phone number involved. The transcripts from my own test
 conversations with it are kept in [evals/live/](evals/live/).
+
+## For reviewers
+
+- **Try it** at https://warmline.mziyo.com. The first section is a live voice
+  agent; the passcode comes with the link. The API runs on a machine at home,
+  so it can be briefly unavailable.
+- **The spec came first.** [docs/SPEC.md](docs/SPEC.md) is the first commit.
+  Section 11 is the decision log: each question put to me, my answer and why.
+- **Tests came before the code.**
+  [`739d371`](https://github.com/Mustafo-Z/warmline/commit/739d371) adds the
+  policy-engine tests with 59 of 66 failing, and
+  [`29704cc`](https://github.com/Mustafo-Z/warmline/commit/29704cc) makes them
+  pass.
+- **What the AI got wrong, and how it was caught**, is in
+  [How this was built](#how-this-was-built). What talking to the real agent
+  found that no test had is in
+  [What the live conversations showed](#what-the-live-conversations-showed).
+- **Time.** About two hours of my own time, between 9 and 14 September. Claude
+  wrote the code and drafted the docs and commit messages; I made the
+  decisions, tried the running system and talked to the agent.
 
 ## The problem
 
@@ -62,85 +80,55 @@ and the calling rules in [policy/calling_windows.yaml](policy/calling_windows.ya
 in version control rather than in code or a vendor dashboard, so that changing
 what the system is allowed to do arrives as a diff someone can review.
 
-## Running it
+## How this was built
 
-Python 3.11+ and Node 20+.
+The implementation was AI-directed. I wrote the brief, made the decisions and
+verified the output; Claude wrote the code, and drafted this README, the spec
+and the commit messages. Since that is what the role is about, here is how it
+actually went.
 
-```bash
-python -m venv .venv && .venv/bin/pip install -e '.[dev]'
-.venv/bin/python -m warmline.storage.seed
-.venv/bin/uvicorn warmline.api.main:app --port 8000
-```
+**The spec came first and nothing else was written until it was settled.**
+`docs/SPEC.md` was the entire first commit — the reason codes, the decision
+shape, the data model and the API, before any implementation existed to shape
+them around. Every open question in it was put to me explicitly rather than
+guessed at, and section 11 is a decision log recording what was asked, what I
+chose and why, including one decision that superseded an earlier one.
 
-```bash
-cd web && npm install && npm run dev
-```
+**Tests came before the implementation, visibly.** Commit `739d371` adds 66
+policy-engine tests against a stub and is deliberately red; `29704cc` makes it
+green. The history is not squashed, so the order of work is legible.
 
-Then open the page the dev server prints. Copy `.env.example` to `.env` if you
-want to exercise the webhook; nothing else needs configuration.
+**The spec was corrected when the code proved it wrong.** Writing the engine
+showed that `CALL_IN_FLIGHT` is recoverable but has no computable retry time,
+and that the config sample was missing a map the timezone check needed. Both
+were fixed in the spec in the same commit as the code.
 
-**If every row shows "Outside permitted calling hours", the system is working.**
-The seed data is in `Asia/Dubai`. Calling hours are 09:00–18:00 Monday to
-Thursday and 09:00–12:00 on Friday, with no calling at the weekend — the UAE
-working week since 2022, including its half day. Outside those hours the gate
-blocks simulated calls exactly as it would block real ones, which is
-deliberate: a simulated call is not a way around the policy layer.
+**Directing well meant catching things that looked fine.** The claim checker's
+first version rejected the agent's own opening line, because the rule "no
+proper nouns" should have been "no proper nouns absent from the canonical
+claim" — the canonical contains "AI". The commitment check originally ran
+before allowlist matching and flagged "I'll send a calendar invite" as agreeing
+to send a document. A non-claim pattern anchored to a prefix rather than the
+whole sentence would have dismissed the entire disclosure as a greeting. None
+of these would have failed a test that had been written to match the code.
 
-To see a completed call outside office hours, widen the window in
-`policy/calling_windows.yaml`. That is a policy change and shows up as a diff,
-which is the point.
+**The most useful correction came from looking at the running system.** Every
+prospect was blocking on a Friday, which was correct according to the config
+and wrong according to the calendar: the `AE` profile encoded the pre-2022 UAE
+working week, which changed to Monday–Friday in January 2022. Fixing it meant
+changing the shape of the config, because a half-day Friday cannot be expressed
+as one window plus a list of days. Calling windows are now per day. A
+compliance layer carrying a four-year-old compliance rule is the specific kind
+of wrong this project exists to avoid.
 
-```bash
-.venv/bin/python -m pytest        # 271 tests, no keys, no network
-.venv/bin/ruff check .
-```
-
-## Talking to the live agent
-
-The first section of the page is a real conversation, not a script. Enter the
-passcode, allow the microphone, and you are the prospect. The agent is an
-ElevenLabs voice agent created from `agent/system_prompt.md` and
-`agent/first_turn.md` by `python -m warmline.voice.sync_agent`, so what it was
-told is exactly what is in this repository.
-
-It is not an outbound call, and it does not go through the pre-dial gate: you
-start it yourself, in your own browser, and no phone number is involved. What it
-does go through is everything after the conversation. When it ends, the API
-fetches the transcript ElevenLabs stored — not what the page displayed — and
-runs the same disclosure, claim, commitment and opt-out checks as every scripted
-call. The result is stored labelled `live`, in its own table.
-
-Worth trying: ask what it costs, ask it to promise coverage in a named
-publication, ask whether it is a real person, or tell it to stop calling you.
-
-To switch it on for a deployment, put `ELEVENLABS_API_KEY` and
-`WARMLINE_VOICE_PASSCODE` in `.env` on the serving machine, run
-`python -m warmline.voice.sync_agent`, then re-run `deploy/mac-mini.sh`. Sessions
-are capped per hour, each one is limited to the call length in
-`agent/agent_config.json`, and the API key never reaches the browser.
-
-## Where this is running
-
-The page is on Vercel. The API runs under launchd on a machine at home, reached
-through a Cloudflare tunnel at `warmline-api.mziyo.com` — no port forwarding,
-no public IP, and the service binds to localhost so the tunnel is the only way
-in. `deploy/mac-mini.sh` sets that up and `deploy/README.md` explains it.
-
-Self-hosted, so it can be briefly unavailable if that machine restarts. Running
-it locally takes about a minute and needs nothing but Python and Node.
-
-What you will see depends on when you look, which is the point:
-
-- **Inside UAE calling hours**, the first prospect is callable and the rest each
-  block for a different reason — expired consent, withdrawn consent, a
-  suppressed number, no consent record, a number that is not on the verified
-  allowlist.
-- **Outside them**, every row blocks on calling hours as well. A simulated call
-  goes through the same gate a real one would; being simulated is not a way
-  around the policy layer.
-- The attempt limit is one call per number per 24 hours, so a second simulated
-  call to the same prospect is refused. That is the limit working, not the
-  demo breaking.
+**Running it found what the tests did not.** Two bugs appeared within a minute
+of opening the page, both committed with regression tests in `8de7bae`. One
+SQLite connection shared across FastAPI's threadpool returned rows with empty
+columns under concurrent requests. And the prospect view showed the outcome of
+the latest *attempt*, so a completed call disappeared from the table as soon as
+the attempt limit started blocking. I confirmed the concurrency test fails
+without its fix rather than assuming a passing concurrency test proves
+anything.
 
 ## How it is verified
 
@@ -274,55 +262,6 @@ that avoids every pattern; what it can do is report how much it failed to
 classify, which a golden file pins so that widening the blind spot turns the
 build red.
 
-## How this was built
-
-The implementation was AI-directed. I wrote the brief, made the decisions and
-verified the output; Claude wrote the code. Since that is what the role is
-about, here is how it actually went.
-
-**The spec came first and nothing else was written until it was settled.**
-`docs/SPEC.md` was the entire first commit — the reason codes, the decision
-shape, the data model and the API, before any implementation existed to shape
-them around. Every open question in it was put to me explicitly rather than
-guessed at, and section 11 is a decision log recording what was asked, what I
-chose and why, including one decision that superseded an earlier one.
-
-**Tests came before the implementation, visibly.** Commit `739d371` adds 66
-policy-engine tests against a stub and is deliberately red; `29704cc` makes it
-green. The history is not squashed, so the order of work is legible.
-
-**The spec was corrected when the code proved it wrong.** Writing the engine
-showed that `CALL_IN_FLIGHT` is recoverable but has no computable retry time,
-and that the config sample was missing a map the timezone check needed. Both
-were fixed in the spec in the same commit as the code.
-
-**Directing well meant catching things that looked fine.** The claim checker's
-first version rejected the agent's own opening line, because the rule "no
-proper nouns" should have been "no proper nouns absent from the canonical
-claim" — the canonical contains "AI". The commitment check originally ran
-before allowlist matching and flagged "I'll send a calendar invite" as agreeing
-to send a document. A non-claim pattern anchored to a prefix rather than the
-whole sentence would have dismissed the entire disclosure as a greeting. None
-of these would have failed a test that had been written to match the code.
-
-**The most useful correction came from looking at the running system.** Every
-prospect was blocking on a Friday, which was correct according to the config
-and wrong according to the calendar: the `AE` profile encoded the pre-2022 UAE
-working week, which changed to Monday–Friday in January 2022. Fixing it meant
-changing the shape of the config, because a half-day Friday cannot be expressed
-as one window plus a list of days. Calling windows are now per day. A
-compliance layer carrying a four-year-old compliance rule is the specific kind
-of wrong this project exists to avoid.
-
-**Running it found what the tests did not.** Two bugs appeared within a minute
-of opening the page, both committed with regression tests in `8de7bae`. One
-SQLite connection shared across FastAPI's threadpool returned rows with empty
-columns under concurrent requests. And the prospect view showed the outcome of
-the latest *attempt*, so a completed call disappeared from the table as soon as
-the attempt limit started blocking. I confirmed the concurrency test fails
-without its fix rather than assuming a passing concurrency test proves
-anything.
-
 ## What I would do next
 
 Deliberately not built, so the scope stayed finished rather than broad:
@@ -347,6 +286,86 @@ Deliberately not built, so the scope stayed finished rather than broad:
 - **A retention policy.** Transcripts are kept indefinitely here because they
   are either scripted or my own test conversations; that would not survive
   contact with a real prospect's data.
+
+## Talking to the live agent
+
+The first section of the page is a real conversation, not a script. Enter the
+passcode, allow the microphone, and you are the prospect. The agent is an
+ElevenLabs voice agent created from `agent/system_prompt.md` and
+`agent/first_turn.md` by `python -m warmline.voice.sync_agent`, so what it was
+told is exactly what is in this repository.
+
+It is not an outbound call, and it does not go through the pre-dial gate: you
+start it yourself, in your own browser, and no phone number is involved. What it
+does go through is everything after the conversation. When it ends, the API
+fetches the transcript ElevenLabs stored — not what the page displayed — and
+runs the same disclosure, claim, commitment and opt-out checks as every scripted
+call. The result is stored labelled `live`, in its own table.
+
+Worth trying: ask what it costs, ask it to promise coverage in a named
+publication, ask whether it is a real person, or tell it to stop calling you.
+
+To switch it on for a deployment, put `ELEVENLABS_API_KEY` and
+`WARMLINE_VOICE_PASSCODE` in `.env` on the serving machine, run
+`python -m warmline.voice.sync_agent`, then re-run `deploy/mac-mini.sh`. Sessions
+are capped per hour, each one is limited to the call length in
+`agent/agent_config.json`, and the API key never reaches the browser.
+
+## Running it
+
+Python 3.11+ and Node 20+.
+
+```bash
+python -m venv .venv && .venv/bin/pip install -e '.[dev]'
+.venv/bin/python -m warmline.storage.seed
+.venv/bin/uvicorn warmline.api.main:app --port 8000
+```
+
+```bash
+cd web && npm install && npm run dev
+```
+
+Then open the page the dev server prints. Copy `.env.example` to `.env` if you
+want to exercise the webhook; nothing else needs configuration.
+
+**If every row shows "Outside permitted calling hours", the system is working.**
+The seed data is in `Asia/Dubai`. Calling hours are 09:00–18:00 Monday to
+Thursday and 09:00–12:00 on Friday, with no calling at the weekend — the UAE
+working week since 2022, including its half day. Outside those hours the gate
+blocks simulated calls exactly as it would block real ones, which is
+deliberate: a simulated call is not a way around the policy layer.
+
+To see a completed call outside office hours, widen the window in
+`policy/calling_windows.yaml`. That is a policy change and shows up as a diff,
+which is the point.
+
+```bash
+.venv/bin/python -m pytest        # 271 tests, no keys, no network
+.venv/bin/ruff check .
+```
+
+## Where this is running
+
+The page is on Vercel. The API runs under launchd on a machine at home, reached
+through a Cloudflare tunnel at `warmline-api.mziyo.com` — no port forwarding,
+no public IP, and the service binds to localhost so the tunnel is the only way
+in. `deploy/mac-mini.sh` sets that up and `deploy/README.md` explains it.
+
+Self-hosted, so it can be briefly unavailable if that machine restarts. Running
+it locally takes about a minute and needs nothing but Python and Node.
+
+What you will see depends on when you look, which is the point:
+
+- **Inside UAE calling hours**, the first prospect is callable and the rest each
+  block for a different reason — expired consent, withdrawn consent, a
+  suppressed number, no consent record, a number that is not on the verified
+  allowlist.
+- **Outside them**, every row blocks on calling hours as well. A simulated call
+  goes through the same gate a real one would; being simulated is not a way
+  around the policy layer.
+- The attempt limit is one call per number per 24 hours, so a second simulated
+  call to the same prospect is refused. That is the limit working, not the
+  demo breaking.
 
 ## Repository map
 
