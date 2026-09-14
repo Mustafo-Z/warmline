@@ -5,10 +5,11 @@
 # and highest-severity pre-dial check, so that the constraint is enforced by
 # code rather than promised in a README.
 #
-# Every entry below is fictional. The UK number is from the Ofcom range
-# reserved for drama (0113 496 0xxx); the US numbers are from the 555-01xx
-# fictional range. The UAE has no equivalent reserved range, so that number is
-# simply invented and is not in service.
+# Every entry below is made up. The UK number is from the Ofcom range reserved
+# for drama (0113 496 0xxx); the US numbers are from the 555-01xx fictional
+# range. The UAE has no equivalent reserved range, so the UAE numbers are
+# invented. Nobody has checked whether they are in service, and some may belong
+# to real people. That is harmless only because nothing here dials.
 
 policy_version: "1.0.0"
 
