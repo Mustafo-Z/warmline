@@ -1315,3 +1315,12 @@ The risk of a smaller model is that it follows the rules less closely. The
 post-call checks exist to show that, and whether the change helped is measured
 on the next conversation rather than assumed.
 
+*Result:* the timing diagnostic confirms, from the model named in ElevenLabs'
+billing record, that the next conversation ran on Claude Haiku 4.5. Across its
+three replies the agent started speaking after a median of 1.23s and at worst
+1.57s, against 2.50s and 3.45s before. The language model's slowest first
+sentence fell from 3.03s to 0.70s, the longest reply from 52 words to 27, and
+the call lasted 48 seconds. One short conversation against one long one is a
+rough comparison. In the slowest reply, waiting for the end of the prospect's
+turn (0.67s) now took as long as the model.
+

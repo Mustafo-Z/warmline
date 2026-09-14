@@ -108,8 +108,13 @@ each time.
    longest answers were the slowest, and they pushed the call to 95 seconds,
    when the opening line promises under a minute. I switched the model from
    Claude Sonnet 4.5 to Haiku 4.5 and limited replies to two short sentences.
-   In the next conversation the longest reply was 27 words, down from 52. Its
-   timing, and which model answered it, haven't been checked yet.
+6. **After the change.** The timing script confirms, from ElevenLabs' billing
+   record, that the next conversation ran on Haiku. The agent took a median of
+   1.2 seconds to start talking, and 1.57 at worst. The model's slowest first
+   sentence went from 3.03 seconds to 0.70, the longest reply from 52 words to
+   27, and the call took 48 seconds. That's one short conversation against one
+   long one, so it's a rough comparison. In the slowest reply, waiting to be
+   sure I'd finished talking now took as long as the model.
 
 ## What isn't proven
 
@@ -136,6 +141,8 @@ each time.
   now.
 - Screen against real do-not-call registers, not just the suppression list.
 - Check what the agent says during the call, not only afterwards.
+- Tune how long the agent waits to decide the prospect has finished. On the
+  Haiku call that wait was as long as the model's part of the slowest reply.
 - Move to a real database with a connection per request.
 - Add a retention policy for transcripts.
 
