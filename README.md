@@ -22,9 +22,6 @@ conversations are the ones you start yourself on the page, in your browser.
   pass.
 - **Mistakes caught:** see [How it was built](#how-it-was-built) and
   [What the live conversations found](#what-the-live-conversations-found).
-- **Time:** about two hours of my own time, between 8 and 14 September. Claude
-  wrote the code and drafted the docs and commit messages. I made the decisions,
-  tested the running system and talked to the agent.
 
 ## What it checks
 
